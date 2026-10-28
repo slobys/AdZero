@@ -63,7 +63,7 @@ python3 scripts/prepare_istoreos_source.py --directory "$HOME/istoreos-builds/is
 
 ## iStoreOS 独立源码 APK 候选验证（尚未开放用户安装）
 
-目前核对的固件为 iStoreOS x86/64：DISTRIB_RELEASE=25.12.6、DISTRIB_REVISION=2026102312，包管理器 APK。厂商源码可以按官方历史提交与全部 feeds SHA 固定，宿主工具和交叉工具链已能够在相应 Buildroot 中编译，但软件包仍需要独立验收。
+目前核对的固件为 iStoreOS x86/64：DISTRIB_RELEASE=25.12.6、DISTRIB_REVISION=2026102312，包管理器 APK。厂商源码和全部 13 组 feeds 均按官方提交号固定，已完成宿主工具、交叉工具链、内核和 AdZero 原生 APK 编译；仍需真实设备上测试依赖安装及 DNS、代理和回滚。
 
 维护者在隔离的厂商 Buildroot 中准备 feeds 和 package/luci-app-adzero 源码后，执行 make defconfig、make tools/install、make toolchain/install、make target/linux/compile、make package/feeds/luci/luci-base/host/compile、make package/luci-app-adzero/compile。原厂 Linux 内核 .config 须由真实 target/linux/compile 生成，不能跳过内核依赖或伪造配置打包。
 
@@ -86,6 +86,17 @@ python3 scripts/inspect_istoreos_candidate.py \
 ~~~
 
 检查器会核对厂商真实 Git 提交、官方 feeds.buildinfo 的 SHA-256，以及 **13 个 feed 目录当前检出的 Git 提交是否与原厂逐项一致**；任何 SHA 漂移、缺失或符号链接都会拒绝。还会验证 Buildroot 构建配置、target/架构/包格式、当前 AdZero 源码及原生 APK 工具对封装内容的校验结果。只生成候选证据，报告明确保留 sdk_build=native_vendor_source_candidate_not_sdk_verified 和 publishable=false，绝不会自动将它升级为 SDK 验证通过。
+
+为确认 APK 是否能在原始固件的软件包集合中解析全部依赖，还须提供**从官方 gzip 镜像校验并解压**的真实固件镜像，运行如下只读命令。它对 2.4 GB 原始镜像先核对固定 SHA-256，再读取 SquashFS 内 `/lib/apk/db/installed`，通过原厂 APK 工具逐层解析缺失的包及其原厂 Buildroot 提供者，逐一记录包架构、版本和 SHA-256。源码、包校验与固件版本/修订有任何偏差就拒绝：
+
+~~~sh
+python3 scripts/check_istoreos_dependencies.py \
+  --source /absolute/path/to/istoreos-vendor-source \
+  --image /absolute/path/to/verified-original-firmware.img \
+  --output /absolute/path/to/new-dependency-closure.json
+~~~
+
+目前的实测结果为 1,065 个官方已安装软件包，缺少的 7 个 AdZero 依赖全部能从原厂同版本 Buildroot APK 中找到，零未解决依赖。对应的 [原生 APK 候选审计报告](evidence/v0.21.5/istoreos-native-apk-candidate.json) 记录了固定厂商提交、固件原始/压缩 SHA-256、APK SHA-256 及全部 7 个依赖包的版本、架构和 SHA-256。报告仍强制保持 `publishable=false`、`device_acceptance=not_run`；不能把此结果当成真实路由器 APK 生命周期、服务启停、DNS/代理共存或 SDK/ABI 验收。
 
 后续发布必须进一步在对应真实 iStoreOS 固件上验证依赖/ABI、安装和升级、DNS 拦截、NaiLink 等代理共存、重启和恢复。没有完成之前，当前公开 v0.21.5 的五组已验证固件目标不受影响，iStoreOS 仍不能通过公开安装器。
 

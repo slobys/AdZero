@@ -1,0 +1,103 @@
+{
+  "checked_on_utc": "2026-10-28",
+  "original_firmware_source": "https://fw20.koolcenter.com/iStoreOS/x86_64/istoreos-25.12.6-2026102312-x86-64-squashfs-combined.img.gz",
+  "original_firmware_gzip_sha256": "48791c15b9fa7c261c519825020eaaf7792f06afbc495dd314966ffb13691d32",
+  "original_firmware_raw_image_sha256": "833e203e667fb49b27dd69ce8a8a8176a563d5f7154ba95ac219bed0af5da3c9",
+  "firmware_identity": {
+    "DISTRIB_ID": "iStoreOS",
+    "DISTRIB_RELEASE": "25.12.6",
+    "DISTRIB_REVISION": "2026102312",
+    "DISTRIB_TARGET": "x86/64",
+    "DISTRIB_ARCH": "x86_64",
+    "DISTRIB_TAINTS": "busybox"
+  },
+  "native_vendor_source_commit": "283d02639c740f8ae6e9425b48be8c61f152c6b8",
+  "vendor_feeds_checked": {
+    "feed_count": 13,
+    "feeds_sha256": "bc91c22e8c63dfaad7957e7eab86a82ad869533022a9bc02ba3aaa9f56c7f726"
+  },
+  "adzero_source_sha256": "ff7b2849fa9ae7fcc11ef4d377125994fa42b90ad142860a397d611d08a4d8e3",
+  "native_apk": {
+    "filename": "luci-app-adzero-0.21.5-r1.apk",
+    "sha256": "58d0bd360d722412484b08d7ec275e8eaa1b3eff35dd4d4a98a8e9a479a874d8",
+    "buildroot_package_arch": "x86_64",
+    "apk_metadata_arch": "noarch",
+    "file_payload_validation": {
+      "package": "luci-app-adzero-0.21.5-r1.apk",
+      "payload_files_checked": 66,
+      "runtime_source_and_modes": "passed",
+      "luci_delivered_js_syntax": "passed",
+      "luci_delivered_ui_regressions": "passed",
+      "scope": "extraction only, no package installation or lifecycle execution"
+    }
+  },
+  "firmware_installed_packages_examined": 1065,
+  "direct_apk_dependencies": [
+    "adblock-fast",
+    "ca-bundle",
+    "conntrack",
+    "coreutils-timeout",
+    "curl",
+    "libc",
+    "luci-base",
+    "rpcd-mod-file",
+    "rpcd-mod-ucode",
+    "tcpdump-mini",
+    "ucode",
+    "ucode-mod-fs",
+    "ucode-mod-socket",
+    "ucode-mod-ubus",
+    "ucode-mod-uci",
+    "ucode-mod-uloop"
+  ],
+  "missing_original_packages_fulfilled_by_pinned_vendor_build": {
+    "adblock-fast": {
+      "file": "adblock-fast-1.2.4-r4.apk",
+      "version": "1.2.4-r4",
+      "arch": "noarch",
+      "sha256": "a0738ba71981f699dfecc4896f3d7332fc36adcee0f9ff36e4a2576f18cbdac9"
+    },
+    "conntrack": {
+      "file": "conntrack-1.4.8-r1.apk",
+      "version": "1.4.8-r1",
+      "arch": "x86_64",
+      "sha256": "6ab33e1fec1016f5b9b06c7ff70c7a78bea629cc1935c004947a1a5e56fa24a2"
+    },
+    "coreutils-timeout": {
+      "file": "coreutils-timeout-9.9-r2.apk",
+      "version": "9.9-r2",
+      "arch": "x86_64",
+      "sha256": "5a9d7cbff353150164ba6e61457b65c699c5f94a62c3eb48606a6b4c6abf7257"
+    },
+    "tcpdump-mini": {
+      "file": "tcpdump-mini-4.99.6-r1.apk",
+      "version": "4.99.6-r1",
+      "arch": "x86_64",
+      "sha256": "4aab6bef10d322b1647577db1e8095b9ec5a08fd8e7ddd964a8912e8405159d1"
+    },
+    "libnetfilter-cthelper0": {
+      "file": "libnetfilter-cthelper0-1.0.0-r2.apk",
+      "version": "1.0.0-r2",
+      "arch": "x86_64",
+      "sha256": "f1120ae56d1a753dc4918170b1e1c47d236982a7da08cb634c8ff6a1e01a5561"
+    },
+    "libnetfilter-cttimeout1": {
+      "file": "libnetfilter-cttimeout1-1.0.0-r2.apk",
+      "version": "1.0.0-r2",
+      "arch": "x86_64",
+      "sha256": "efd7fbfd3a58e1d765fbff8a0e54950aced1ad937fb373bc2a41bc6749d82680"
+    },
+    "libnetfilter-queue1": {
+      "file": "libnetfilter-queue1-1.0.5-r4.apk",
+      "version": "1.0.5-r4",
+      "arch": "x86_64",
+      "sha256": "ffeff14bff79380314ad14474aaba0692c66ce9ea735199f5a1f28fcfb1a79f2"
+    }
+  },
+  "unresolved_dependencies": [],
+  "closure": "passed_vendor_builds_only",
+  "sdk_build": "native_vendor_source_candidate_not_sdk_verified",
+  "device_acceptance": "not_run",
+  "publishable": false,
+  "evidence_scope": "Offline original-image APK database and native vendor Buildroot packages only; does not prove lifecycle, DNS, proxy, firewall, reboot or device ABI acceptance. This evidence JSON is NOT an installable package."
+}
