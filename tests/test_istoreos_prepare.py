@@ -36,16 +36,24 @@ class IstoreSourcePreparationTest(unittest.TestCase):
         self.fetch = downloader
 
     def test_preparation_pins_full_commit_source_and_feeds(self):
-        def fake_clone(argv, check):
-            self.assertEqual(argv[0:2], ["git", "clone"])
-            self.assertTrue(argv[-2].startswith("https://github.com/istoreos/"))
-            (self.directory / "scripts").mkdir(parents=True)
-            (self.directory / "rules.mk").write_text("rules")
-            (self.directory / "scripts/feeds").write_text("fixture")
+        git_commands = []
+        def fake_git(argv, check):
+            self.assertTrue(check)
+            git_commands.append(argv)
+            if "checkout" in argv:
+                (self.directory / "scripts").mkdir(parents=True)
+                (self.directory / "rules.mk").write_text("rules")
+                (self.directory / "scripts/feeds").write_text("fixture")
         with patch.dict(probe.METADATA_SHA256, self.pins, clear=True):
             report = source.prepare(self.directory, fetch=self.fetch,
-                       run=fake_clone,
+                       run=fake_git,
                        check_output=lambda *a, **kw: probe.SOURCE_COMMIT)
+        self.assertEqual(len(git_commands), 3)
+        self.assertEqual(git_commands[0][:2], ["git", "clone"])
+        self.assertIn("--no-checkout", git_commands[0])
+        self.assertEqual(git_commands[0][-2], probe.SOURCE_REPO + ".git")
+        self.assertEqual(git_commands[1][-4:], ["--depth", "1", "origin", probe.SOURCE_COMMIT])
+        self.assertEqual(git_commands[2][-3:], ["checkout", "--detach", probe.SOURCE_COMMIT])
         self.assertEqual(report["sdk_build"], "not_run")
         self.assertFalse(report["publishable"])
         self.assertEqual(report["source_commit"], probe.SOURCE_COMMIT)
@@ -57,11 +65,25 @@ class IstoreSourcePreparationTest(unittest.TestCase):
 
     def test_mismatched_source_commit_refuses_to_export_sdk_manifest(self):
         def fake_clone(*args, **kwargs):
-            (self.directory / "scripts").mkdir(parents=True)
+            (self.directory / "scripts").mkdir(parents=True, exist_ok=True)
         with patch.dict(probe.METADATA_SHA256, self.pins, clear=True):
-            with self.assertRaisesRegex(ValueError, "source branch differs"):
+            with self.assertRaisesRegex(ValueError, "Pinned iStoreOS source differs"):
                 source.prepare(self.directory, fetch=self.fetch, run=fake_clone,
                                check_output=lambda *_args, **_kw: "0"*40)
+        self.assertFalse((self.directory / "adzero-source-provenance.json").exists())
+
+    def test_unavailable_pinned_commit_never_writes_source_evidence(self):
+        import subprocess
+        calls = []
+        def unavailable_fetch(argv, check):
+            calls.append(argv)
+            if "fetch" in argv:
+                raise subprocess.CalledProcessError(128, argv)
+        with patch.dict(probe.METADATA_SHA256, self.pins, clear=True):
+            with self.assertRaises(subprocess.CalledProcessError):
+                source.prepare(self.directory, fetch=self.fetch,
+                               run=unavailable_fetch)
+        self.assertEqual(len(calls), 2)
         self.assertFalse((self.directory / "adzero-source-provenance.json").exists())
 
     def test_existing_directory_is_not_overwritten(self):
