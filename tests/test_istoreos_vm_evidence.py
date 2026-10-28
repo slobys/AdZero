@@ -45,6 +45,17 @@ class NativeIstoreVmEvidenceTests(unittest.TestCase):
         self.assertTrue(vm["etc_config_adzero_present"])
         self.assertFalse(vm["adzero_enabled_by_default"])
 
+    def test_historical_seven_dependency_candidate_is_not_new_vm_apk(self):
+        earlier = json.loads((ROOT / "docs/evidence/v0.21.5/istoreos-native-apk-candidate.json").read_text())
+        current = self.result["native_vendor_build"]
+        self.assertEqual(earlier["firmware_identity"], self.original["actual_system_release"])
+        self.assertEqual(earlier["native_apk"]["filename"], current["candidate_apk_name"])
+        self.assertNotEqual(earlier["native_apk"]["sha256"], current["candidate_apk_sha256"])
+        self.assertIn("tcpdump-mini", earlier["direct_apk_dependencies"])
+        self.assertEqual(self.result["direct_dependency_provider"], "tcpdump")
+        self.assertFalse(earlier["publishable"])
+        self.assertFalse(current["publishable"])
+
     def test_six_vendor_deps_and_fail_closed_not_published(self):
         report = self.result
         missing = report["vendor_built_missing_packages"]

@@ -183,6 +183,38 @@ class IstoreNativeCandidateTest(unittest.TestCase):
                              package_inspector=self.inspect)
         self.assertFalse(target.exists())
 
+    def test_symlinked_apk_tool_or_vendor_directory_is_rejected(self):
+        trusted_tool = self.base / "apk-tool"
+        self.apktool.rename(trusted_tool)
+        self.apktool.symlink_to(trusted_tool)
+        with self.assertRaisesRegex(ValueError, "APK extraction tool"):
+            self.validate()
+        self.apktool.unlink()
+        trusted_tool.rename(self.apktool)
+
+        native_dir = self.base / "native-package"
+        self.binary.parent.rename(native_dir)
+        self.binary.parent.symlink_to(native_dir, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "Expected exactly one"):
+            self.validate()
+
+    def test_symlinked_vendor_feed_root_is_rejected(self):
+        feed_dir = self.base / "external-feeds"
+        (self.source / "feeds").rename(feed_dir)
+        (self.source / "feeds").symlink_to(feed_dir, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "feeds directory"):
+            self.validate()
+
+    def test_export_rejects_changed_bytes_and_cleans_partial_output(self):
+        output = self.base / "candidate-output"
+        def swapped_bytes(_source, destination):
+            Path(destination).write_bytes(b"modified-between-validation-and-export")
+        with mock.patch.object(candidate.shutil, "copyfile", side_effect=swapped_bytes):
+            with self.assertRaisesRegex(ValueError, "differs from inspected candidate"):
+                candidate.export(self.source, output, run=self.run_git,
+                                 package_inspector=self.inspect)
+        self.assertFalse(output.exists(), "An invalid candidate must not leave export artifacts")
+
     def test_output_must_not_be_in_vendor_source(self):
         with self.assertRaisesRegex(ValueError, "outside the Buildroot"):
             candidate.export(self.source, self.source / "evidence",

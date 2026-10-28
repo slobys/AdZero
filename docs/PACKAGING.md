@@ -86,6 +86,7 @@ python3 scripts/inspect_istoreos_candidate.py \
 ~~~
 
 检查器会核对厂商真实 Git 提交、官方 feeds.buildinfo 的 SHA-256，以及 **13 个 feed 目录当前检出的 Git 提交是否与原厂逐项一致**；任何 SHA 漂移、缺失或符号链接都会拒绝。还会验证 Buildroot 构建配置、target/架构/包格式、当前 AdZero 源码及原生 APK 工具对封装内容的校验结果。只生成候选证据，报告明确保留 sdk_build=native_vendor_source_candidate_not_sdk_verified 和 publishable=false，绝不会自动将它升级为 SDK 验证通过。
+导出候选时还会重新核对**实际复制到输出目录的 APK SHA-256**，避免在检查与复制之间文件发生变化却仍写入有效清单；发现不一致即删除本次不完整的导出目录。拒绝符号链接 APK 提取器及厂商 feed/包输出目录，防止本地构建来源被间接替换。
 
 为确认 APK 是否能在原始固件的软件包集合中解析全部依赖，还须提供**从官方 gzip 镜像校验并解压**的真实固件镜像，运行如下只读命令。它对 2.4 GB 原始镜像先核对固定 SHA-256，再读取 SquashFS 内 `/lib/apk/db/installed`，通过原厂 APK 工具逐层解析缺失的包及其原厂 Buildroot 提供者，逐一记录包架构、版本和 SHA-256。源码、包校验与固件版本/修订有任何偏差就拒绝：
 
@@ -96,7 +97,7 @@ python3 scripts/check_istoreos_dependencies.py \
   --output /absolute/path/to/new-dependency-closure.json
 ~~~
 
-目前的实测结果为 1,065 个官方已安装软件包，缺少的 7 个 AdZero 依赖全部能从原厂同版本 Buildroot APK 中找到，零未解决依赖。对应的 [原生 APK 候选审计报告](evidence/v0.21.5/istoreos-native-apk-candidate.json) 记录了固定厂商提交、固件原始/压缩 SHA-256、APK SHA-256 及全部 7 个依赖包的版本、架构和 SHA-256。报告仍强制保持 `publishable=false`、`device_acceptance=not_run`；不能把此结果当成真实路由器 APK 生命周期、服务启停、DNS/代理共存或 SDK/ABI 验收。
+**历史候选记录（不是当前二进制）：**最初审计对比了原厂固件已安装的 1,065 个软件包，旧候选的 `tcpdump-mini` 等 7 个缺失依赖可由原厂 Buildroot 产物补齐。该 [旧版候选审计报告](evidence/v0.21.5/istoreos-native-apk-candidate.json) 保留当时 APK 的 SHA-256，不应替换成后续新编译的同名文件。**最新版隔离虚拟机验证**已改用通用 `tcpdump`，缺失依赖降至 6 个，使用的是**不同 SHA-256 的新候选字节**，以 [虚拟机报告](evidence/istoreos-25.12.6/native-apk-virtual-machine-acceptance.json) 为准。两者均保持 `publishable=false`，都不能视为真实路由器 DNS、代理或回滚验收。
 
 后续发布必须进一步在对应真实 iStoreOS 固件上验证依赖/ABI、安装和升级、DNS 拦截、NaiLink 等代理共存、重启和恢复。没有完成之前，当前公开 v0.21.5 的五组已验证固件目标不受影响，iStoreOS 仍不能通过公开安装器。
 

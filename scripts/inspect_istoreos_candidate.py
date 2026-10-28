@@ -35,6 +35,9 @@ def verify_pinned_vendor_feeds(source, run):
     digest = hashlib.sha256(raw).hexdigest()
     if digest != METADATA_SHA256["feeds.buildinfo"]:
         raise ValueError("Pinned vendor feed manifest differs from original firmware")
+    feed_root = source / "feeds"
+    if not feed_root.is_dir() or feed_root.is_symlink():
+        raise ValueError("Pinned vendor feeds directory is missing or symlinked")
     seen = set()
     for line in raw.decode("utf-8").splitlines():
         # Pin both official feed identity and immutable source commit.
@@ -93,12 +96,18 @@ def validate(source, run=subprocess.check_output, package_inspector=inspect):
     if source_hash(vendor_package) != local_sha:
         raise ValueError("Compiled iStoreOS source differs from current AdZero package")
     apk_tool = source / "staging_dir/host/bin/apk"
-    if not apk_tool.is_file() or not apk_tool.stat().st_mode & 0o111:
+    if (apk_tool.is_symlink() or not apk_tool.is_file()
+            or not apk_tool.stat().st_mode & 0o111):
         raise ValueError("The matching vendor APK extraction tool is missing")
+    packages_root = source / "bin/packages/x86_64"
+    if (not packages_root.is_dir() or packages_root.is_symlink()
+            or packages_root.parent.is_symlink()):
+        raise ValueError("Native vendor APK directory is missing or symlinked")
     packages = [
-        path for path in (source / "bin/packages/x86_64").glob(
+        path for path in packages_root.glob(
             f"*/luci-app-adzero-{version()}.apk"
         ) if path.is_file() and not path.is_symlink()
+        and not path.parent.is_symlink()
     ]
     if len(packages) != 1:
         raise ValueError(f"Expected exactly one matching native iStoreOS APK, found {len(packages)}")
@@ -143,10 +152,22 @@ def export(source, output, run=subprocess.check_output, package_inspector=inspec
     source_file = next((source / "bin/packages/x86_64").glob(
         f"*/{report['package']}"
     ))
-    shutil.copyfile(source_file, output / report["package"])
-    (output / "build-manifest.json").write_text(
-        json.dumps(report, indent=2, ensure_ascii=False) + "\n"
-    )
+    artifact = output / report["package"]
+    manifest = output / "build-manifest.json"
+    try:
+        shutil.copyfile(source_file, artifact)
+        # Verify copied bytes, not just the input observed before exporting.
+        # A changed source package must never receive a stale valid manifest.
+        if hashlib.sha256(artifact.read_bytes()).hexdigest() != report["sha256"]:
+            raise ValueError("Exported iStoreOS APK differs from inspected candidate")
+        manifest.write_text(
+            json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+        )
+    except (OSError, ValueError):
+        artifact.unlink(missing_ok=True)
+        manifest.unlink(missing_ok=True)
+        output.rmdir()
+        raise
     return report
 
 
