@@ -56,14 +56,28 @@ def build(source, output, jobs=4, *, run=subprocess.run,
     install_source(source, PACKAGE)
     config = source / ".config"
     data = config.read_text(encoding="utf-8")
-    data = re.sub(r"(?m)^(?:CONFIG_PACKAGE_luci-app-adzero=.*|"
-                  r"# CONFIG_PACKAGE_luci-app-adzero is not set)\n?", "", data)
-    config.write_text(data.rstrip("\n") + "\nCONFIG_PACKAGE_luci-app-adzero=m\n",
-                      encoding="utf-8", newline="\n")
+    lines = data.splitlines()
+    configured = (lines.count("CONFIG_PACKAGE_luci-app-adzero=m") == 1 and
+                  not any(
+                      line.startswith("CONFIG_PACKAGE_luci-app-adzero=") and
+                      line != "CONFIG_PACKAGE_luci-app-adzero=m"
+                      or line == "# CONFIG_PACKAGE_luci-app-adzero is not set"
+                      for line in lines
+                  ))
+    if not configured:
+        data = re.sub(r"(?m)^(?:CONFIG_PACKAGE_luci-app-adzero=.*|"
+                      r"# CONFIG_PACKAGE_luci-app-adzero is not set)\n?", "", data)
+        config.write_text(
+            data.rstrip("\n") + "\nCONFIG_PACKAGE_luci-app-adzero=m\n",
+            encoding="utf-8", newline="\n"
+        )
+    # Rewriting an already-correct Buildroot .config can invalidate an entire
+    # native kernel build; no config mutation or defconfig when unchanged.
     steps = (
-        "defconfig", "tools/install", "toolchain/install",
-        "target/linux/compile", "package/feeds/luci/luci-base/host/compile",
-        "package/luci-app-adzero/compile",
+        (() if configured else ("defconfig",)) +
+        ("tools/install", "toolchain/install",
+         "target/linux/compile", "package/feeds/luci/luci-base/host/compile",
+         "package/luci-app-adzero/compile")
     )
     for step in steps:
         run(["make", f"-j{jobs}", step], cwd=source, check=True)

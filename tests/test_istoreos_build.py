@@ -89,6 +89,23 @@ class IstoreBuildCommandTests(unittest.TestCase):
                          self.config.read_text())
         self.assertFalse(self.output.exists())
 
+    def test_existing_correct_buildroot_config_is_preserved_byte_for_byte(self):
+        existing = (
+            'CONFIG_VERSION_DIST="iStoreOS"\n'
+            'CONFIG_PACKAGE_luci-app-adzero=m\n'
+            'CONFIG_TARGET_BOARD="x86"\n'
+        )
+        self.config.write_text(existing)
+        before = self.config.stat().st_mtime_ns
+        self.build(jobs=8)
+        self.assertEqual(self.config.read_text(), existing)
+        self.assertEqual(self.config.stat().st_mtime_ns, before,
+                         "No config write means expensive kernel stamps stay valid")
+        stages = [item[-1] for item in self.events if isinstance(item, tuple)]
+        self.assertNotIn("defconfig", stages)
+        self.assertIn("target/linux/compile", stages)
+        self.assertIn("package/luci-app-adzero/compile", stages)
+
     def test_bad_jobs_or_destination_never_triggers_compile(self):
         for jobs in (0, 13, "8", -1):
             with self.subTest(jobs=jobs):
