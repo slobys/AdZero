@@ -255,7 +255,7 @@ class ReleaseTest(unittest.TestCase):
             for corrupted in (row.rsplit("\t", 1)[0],
                               row.rsplit("\t", 1)[0] + "\t2026102313",
                               row.rsplit("\t", 1)[0] + "\tbad"):
-                (self.output / "releases.tsv").write_text(lines[0] + "\n" + corrupted + "\n")
+                (self.output / "releases.tsv").write_text(lines[0] + "\n" + corrupted + "\n", newline="\n")
                 with self.assertRaisesRegex(ValueError, "revision"):
                     build_release.validate_release(self.output)
             report["revision_declared"] = "2026102313"

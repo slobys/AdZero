@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""Validate a native iStoreOS Buildroot-produced AdZero APK as a *candidate*.
+
+This consumes an already prepared/compiled, officially pinned vendor source
+tree. It neither installs packages, modifies routers nor grants SDK approval.
+The build's revision and package must be checked against device ABI before any
+later release includes it.
+"""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import subprocess
+
+from build_ipk import version
+from build_sdk import PACKAGE, read_config, source_hash
+from check_sdk_packages import inspect
+from probe_istoreos import SOURCE_COMMIT, METADATA_SHA256
+
+FIRMWARE_VERSION = "25.12.6"
+FIRMWARE_REVISION = "2026102312"
+FIRMWARE_IMAGE_SHA256 = "48791c15b9fa7c261c519825020eaaf7792f06afbc495dd314966ffb13691d32"
+
+
+def validate(source, run=subprocess.check_output, package_inspector=inspect):
+    source = Path(source).resolve()
+    evidence_path = source / "adzero-source-provenance.json"
+    if not evidence_path.is_file() or evidence_path.is_symlink():
+        raise ValueError("Original pinned iStoreOS source provenance is required")
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    if (evidence.get("firmware") != "istoreos" or
+            evidence.get("source_commit") != SOURCE_COMMIT or
+            evidence.get("metadata_sha256") != METADATA_SHA256 or
+            evidence.get("sdk_build") != "not_run" or evidence.get("publishable") is not False):
+        raise ValueError("Vendor source provenance differs from the pinned official build")
+    actual_git_head = run(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+    if actual_git_head != SOURCE_COMMIT:
+        raise ValueError("Git source HEAD differs from pinned iStoreOS firmware")
+    config = read_config(source)
+    required = {
+        "CONFIG_VERSION_DIST": "iStoreOS",
+        "CONFIG_TARGET_BOARD": "x86",
+        "CONFIG_TARGET_SUBTARGET": "64",
+        "CONFIG_TARGET_ARCH_PACKAGES": "x86_64",
+        "CONFIG_USE_APK": "y",
+        "CONFIG_PACKAGE_luci-app-adzero": "m",
+    }
+    for key, expected in required.items():
+        if config.get(key) != expected:
+            raise ValueError(f"Wrong iStoreOS vendor build configuration: {key}")
+    vendor_package = source / "package/luci-app-adzero"
+    if not vendor_package.is_dir() or vendor_package.is_symlink():
+        raise ValueError("AdZero package sources missing or symlinked in vendor Buildroot")
+    local_sha = source_hash(PACKAGE)
+    if source_hash(vendor_package) != local_sha:
+        raise ValueError("Compiled iStoreOS source differs from current AdZero package")
+    apk_tool = source / "staging_dir/host/bin/apk"
+    if not apk_tool.is_file() or not apk_tool.stat().st_mode & 0o111:
+        raise ValueError("The matching vendor APK extraction tool is missing")
+    packages = [
+        path for path in (source / "bin/packages/x86_64").glob(
+            f"*/luci-app-adzero-{version()}.apk"
+        ) if path.is_file() and not path.is_symlink()
+    ]
+    if len(packages) != 1:
+        raise ValueError(f"Expected exactly one matching native iStoreOS APK, found {len(packages)}")
+    binary = packages[0]
+    details = package_inspector(binary, apk_tool=apk_tool)
+    if details.get("runtime_source_and_modes") != "passed" or details.get("luci_delivered_ui_regressions") != "passed":
+        raise ValueError("Native iStoreOS APK payload verification is incomplete")
+    digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+    return {
+        "firmware_declared": "istoreos",
+        "release_declared": FIRMWARE_VERSION,
+        "revision_declared": FIRMWARE_REVISION,
+        "target_observed": "x86/64",
+        "package_arch_observed": "x86_64",
+        "package_format": "apk",
+        "firmware_image_sha256_reference": FIRMWARE_IMAGE_SHA256,
+        "vendor_source_commit": SOURCE_COMMIT,
+        "vendor_metadata_sha256": METADATA_SHA256,
+        "source_sha256": local_sha,
+        "package": binary.name,
+        "sha256": digest,
+        "sdk_build": "native_vendor_source_candidate_not_sdk_verified",
+        "device_acceptance": "not_run",
+        "publishable": False,
+        "payload_validation": details,
+    }
+
+
+def export(source, output, run=subprocess.check_output, package_inspector=inspect):
+    report = validate(source, run=run, package_inspector=package_inspector)
+    source = Path(source).resolve()
+    output = Path(output).resolve()
+    if output == source or output.is_relative_to(source):
+        raise ValueError("Export APK evidence outside the Buildroot source tree")
+    if output.exists() or output.is_symlink():
+        raise ValueError("Candidate output already exists; refusing overwrite")
+    output.mkdir(parents=True)
+    source_file = next((source / "bin/packages/x86_64").glob(
+        f"*/{report['package']}"
+    ))
+    shutil.copyfile(source_file, output / report["package"])
+    (output / "build-manifest.json").write_text(
+        json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+    )
+    return report
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source", required=True, type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    args = parser.parse_args()
+    try:
+        print(json.dumps(export(args.source, args.output), indent=2, ensure_ascii=False))
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        parser.exit(1, f"iStoreOS candidate not publishable: {error}\n")

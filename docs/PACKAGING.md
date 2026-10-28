@@ -61,6 +61,23 @@ python3 scripts/prepare_istoreos_source.py --directory "$HOME/istoreos-builds/is
 
 **面向将来 iStoreOS SDK 的严格发行清单：** 当前其他固件仍使用 `sha256 / file / firmware / release / target / arch / format` 七列，iStoreOS 必须有第八列 `revision`，取固件内 `DISTRIB_REVISION` 的十位数字修订号。构建矩阵里的 iStoreOS SDK 条目必须明确固定相同修订号；构建报告、发行清单和路由器检测有任何差异即拒绝安装。此功能是预先加固，不解除当前 iStoreOS 尚无可发布包的限制。
 
+## iStoreOS 独立源码 APK 候选验证（尚未开放用户安装）
+
+目前核对的固件为 iStoreOS x86/64：DISTRIB_RELEASE=25.12.6、DISTRIB_REVISION=2026102312，包管理器 APK。厂商源码可以按官方历史提交与全部 feeds SHA 固定，宿主工具和交叉工具链已能够在相应 Buildroot 中编译，但软件包仍需要独立验收。
+
+维护者在隔离的厂商 Buildroot 中准备 feeds 和 package/luci-app-adzero 源码后，执行 make defconfig、make tools/install、make toolchain/install、make target/linux/compile、make package/feeds/luci/luci-base/host/compile、make package/luci-app-adzero/compile。原厂 Linux 内核 .config 须由真实 target/linux/compile 生成，不能跳过内核依赖或伪造配置打包。
+
+原生 APK 构建完成后，从 AdZero 源码目录运行以下检查命令：
+
+~~~sh
+python3 scripts/inspect_istoreos_candidate.py \
+  --source /absolute/path/to/istoreos-vendor-source \
+  --output /absolute/path/to/new-candidate-output
+~~~
+
+检查器会核对厂商真实 Git 提交、锁定的来源元数据、构建配置、target/架构/包格式、当前 AdZero 源码及原生 APK 工具对封装内容的校验结果。只生成候选证据，报告明确保留 sdk_build=native_vendor_source_candidate_not_sdk_verified 和 publishable=false，绝不会自动将它升级为 SDK 验证通过。
+
+后续发布必须进一步在对应真实 iStoreOS 固件上验证依赖/ABI、安装和升级、DNS 拦截、NaiLink 等代理共存、重启和恢复。没有完成之前，当前公开 v0.21.5 的五组已验证固件目标不受影响，iStoreOS 仍不能通过公开安装器。
 ## Linux / WSL 复现
 
 需要 make、gcc/g++、ncurses 开发头文件、git、gawk、rsync、file、unzip、zstd、Python 3 和 Node。SDK 放在 Linux 文件系统，避免 Windows 挂载目录的大小写与权限差异。
