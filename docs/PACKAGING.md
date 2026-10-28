@@ -100,6 +100,8 @@ python3 scripts/check_istoreos_dependencies.py \
 
 后续发布必须进一步在对应真实 iStoreOS 固件上验证依赖/ABI、安装和升级、DNS 拦截、NaiLink 等代理共存、重启和恢复。没有完成之前，当前公开 v0.21.5 的五组已验证固件目标不受影响，iStoreOS 仍不能通过公开安装器。
 
+**iStoreOS 虚拟机验证的新证据：**使用已固定的原厂完整镜像启动隔离 KVM/QEMU，核对 `DISTRIB_RELEASE=25.12.6`、`DISTRIB_REVISION=2026102312` 以及 APK 3.0.5。`tcpdump-mini` 在原包中会替换固件预装的 `tcpdump`，因此开发中的新包改为通用 `tcpdump` 依赖（原厂完整版和 mini 均可满足），并将所需原生依赖由 7 个减少为 6 个。原始镜像的离线包管理器 `--simulate` 和随后真实 `apk add` 均返回 0、保留完整版 `tcpdump`，默认 `adzero.main.enabled=0`。详细内容和散列证明见 [原生 APK 虚拟机验收报告](evidence/istoreos-25.12.6/native-apk-virtual-machine-acceptance.json)。此实测只发生在可丢弃的虚拟机快照；**不代表真实路由器网络认证完成，亦不得将内部版本同为 0.21.5-r1 的新字节替换公开 v0.21.5 Release**。
+
 ## Linux / WSL 复现
 
 需要 make、gcc/g++、ncurses 开发头文件、git、gawk、rsync、file、unzip、zstd、Python 3 和 Node。SDK 放在 Linux 文件系统，避免 Windows 挂载目录的大小写与权限差异。

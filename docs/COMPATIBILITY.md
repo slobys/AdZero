@@ -35,6 +35,8 @@ iStoreOS 最新 x86_64 25.12.6-2026102312 的官方编译元数据已经核实�
 
 **隔离虚拟机扩展验证：**在 QEMU/KVM 以临时磁盘快照启动原厂镜像，实际读取的 `DISTRIB_ID=iStoreOS`、版本 `25.12.6`、修订 `2026102312`、内核 `6.12.112` 和 APK 3.0.5 均与构建目标一致。挂载仅用于测试的 ext4 虚拟磁盘，在完全无外网的 `apk add --simulate --no-network` 中，AdZero 原生 APK 加七个厂商依赖均通过解算，但**发现原包会把系统预装的完整 `tcpdump` 替换成 `tcpdump-mini`**。后续源码已改为通用 `tcpdump` 依赖，原有完整版与提供 `tcpdump` 虚拟能力的 mini 均可满足，避免无必要的软件包替换；必须重新编译新源码并在虚拟机及真实设备中验收，才能对外发布 iStoreOS 包。虚拟机内预检不等于实机 LAN、DNS、代理共存验收。
 
+**修复后的隔离虚拟机实装（2026-10-28）：**使用原厂镜像、禁用外网连接的 QEMU/KVM 和临时磁盘快照，将**修复为通用 `tcpdump` 依赖**的 AdZero 原生 APK 与 6 个缺失的厂商 APK 一起作为离线本地包提供。原厂 APK 的 `--simulate --no-network` 返回 0，且没有移除原有完整版 `tcpdump`；随后在相同隔离环境中执行真实 `apk add --no-network --allow-untrusted` 安装也返回 0，确认 AdZero 已登记、配置文件存在、完整版 `tcpdump` 仍存在、AdZero 默认启用状态仍为 `0`。验证记录及全部 APK/来源 SHA-256 见 [原厂 iStoreOS 虚拟机安装验收](evidence/istoreos-25.12.6/native-apk-virtual-machine-acceptance.json)。**注意：此候选包内部仍标注 0.21.5-r1，但与公开 v0.21.5 Release 的实际字节不同，不能覆盖或冒充已发布资产。该验证仍不证明实际路由器上的 LAN、NaiLink、DNS、启动及升级回滚已通过；不得据此自动开放 iStoreOS 一键安装。**
+
 **iStoreOS 固件修订号保护（后续独立安装包）：** `25.12.6-2026102312` 是固件镜像的组合命名，系统真实的 `DISTRIB_RELEASE=25.12.6` 与 `DISTRIB_REVISION=2026102312` 是两个独立字段。安装器现已为未来的 iStoreOS 专属包预留 `releases.tsv` 第八列（必须是 10 位数字），并要求两项完全匹配；旧式七列的 iStoreOS 行也会被拒绝。其他 OpenWrt、ImmortalWrt 发行清单保留七列不变。**这一安全准备不意味着已经发布了 iStoreOS 安装包**。
 
 请保留系统 /etc/openwrt_release 的真实信息，不能把 ImmortalWrt / iStoreOS 伪装成 OpenWrt。所有新固件必须逐一通过 SDK 构建、包格式验证、安装备份恢复、DNS 和代理的真实设备验收。

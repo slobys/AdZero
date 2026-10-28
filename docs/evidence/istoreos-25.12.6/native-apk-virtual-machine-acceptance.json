@@ -1,0 +1,93 @@
+{
+  "checked_at_utc": "2026-10-28",
+  "scope": "Isolated KVM/QEMU official iStoreOS image, snapshot disk and restrict=on guest network; no user router modified",
+  "original_image": {
+    "source": "https://fw20.koolcenter.com/iStoreOS/x86_64/istoreos-25.12.6-2026102312-x86-64-squashfs-combined.img.gz",
+    "sha256_gzip": "48791c15b9fa7c261c519825020eaaf7792f06afbc495dd314966ffb13691d32",
+    "sha256_raw": "833e203e667fb49b27dd69ce8a8a8176a563d5f7154ba95ac219bed0af5da3c9",
+    "identity": {
+      "DISTRIB_ID": "iStoreOS",
+      "DISTRIB_RELEASE": "25.12.6",
+      "DISTRIB_REVISION": "2026102312",
+      "DISTRIB_TARGET": "x86/64",
+      "DISTRIB_ARCH": "x86_64",
+      "DISTRIB_TAINTS": "busybox"
+    }
+  },
+  "native_vendor_build": {
+    "source_commit": "283d02639c740f8ae6e9425b48be8c61f152c6b8",
+    "source_sha256": "8df7589827fdc1adc418c3b83887097589b257a4a7654ac0dd91ddf878ee60c9",
+    "feeds": {
+      "feed_count": 13,
+      "feeds_sha256": "bc91c22e8c63dfaad7957e7eab86a82ad869533022a9bc02ba3aaa9f56c7f726"
+    },
+    "candidate_apk_name": "luci-app-adzero-0.21.5-r1.apk",
+    "candidate_apk_sha256": "b579f94fe847da6b6a0230fbdb7efa833d39a6bc80c9b6c726e8da7b10dc0f52",
+    "candidate_version": "0.21.5-r1 (unreleased build bytes; NOT GitHub v0.21.5 asset)",
+    "publishable": false
+  },
+  "firmware_installed_packages_examined": 1065,
+  "direct_dependency_provider": "tcpdump",
+  "original_full_tcpdump_present": true,
+  "mini_provides_tcpdump_in_original_vendor_source": true,
+  "vendor_built_missing_packages": {
+    "adblock-fast": {
+      "file": "adblock-fast-1.2.4-r4.apk",
+      "version": "1.2.4-r4",
+      "arch": "noarch",
+      "sha256": "a0738ba71981f699dfecc4896f3d7332fc36adcee0f9ff36e4a2576f18cbdac9"
+    },
+    "conntrack": {
+      "file": "conntrack-1.4.8-r1.apk",
+      "version": "1.4.8-r1",
+      "arch": "x86_64",
+      "sha256": "6ab33e1fec1016f5b9b06c7ff70c7a78bea629cc1935c004947a1a5e56fa24a2"
+    },
+    "coreutils-timeout": {
+      "file": "coreutils-timeout-9.9-r2.apk",
+      "version": "9.9-r2",
+      "arch": "x86_64",
+      "sha256": "5a9d7cbff353150164ba6e61457b65c699c5f94a62c3eb48606a6b4c6abf7257"
+    },
+    "libnetfilter-cthelper0": {
+      "file": "libnetfilter-cthelper0-1.0.0-r2.apk",
+      "version": "1.0.0-r2",
+      "arch": "x86_64",
+      "sha256": "f1120ae56d1a753dc4918170b1e1c47d236982a7da08cb634c8ff6a1e01a5561"
+    },
+    "libnetfilter-cttimeout1": {
+      "file": "libnetfilter-cttimeout1-1.0.0-r2.apk",
+      "version": "1.0.0-r2",
+      "arch": "x86_64",
+      "sha256": "efd7fbfd3a58e1d765fbff8a0e54950aced1ad937fb373bc2a41bc6749d82680"
+    },
+    "libnetfilter-queue1": {
+      "file": "libnetfilter-queue1-1.0.5-r4.apk",
+      "version": "1.0.5-r4",
+      "arch": "x86_64",
+      "sha256": "ffeff14bff79380314ad14474aaba0692c66ce9ea735199f5a1f28fcfb1a79f2"
+    }
+  },
+  "required_vendor_package_count": 6,
+  "unresolved_dependencies": [],
+  "isolated_vm": {
+    "qemu_kvm": true,
+    "network_restricted": true,
+    "original_system_disk_snapshot": true,
+    "offline_package_media_ext4_readonly": true,
+    "apk_simulate_no_network_exit": 0,
+    "full_tcpdump_replaced_by_solver": false,
+    "apk_install_no_network_exit": 0,
+    "luci_app_adzero_registered": true,
+    "original_full_tcpdump_preserved": true,
+    "etc_config_adzero_present": true,
+    "adzero_enabled_by_default": false,
+    "adblock_fast_disabled_postinst_message_expected": true,
+    "vm_log_sha256": "793a9b88ba0fbd63e19103d7b850d1d839095eda4a25dd709e6b99ce46c97f18"
+  },
+  "device_acceptance": "isolated_vm_install_verified_no_real_lan_test",
+  "real_router_dns_nailink_ipv4_ipv6_failover_reboot_upgrade_rollback": "not_run",
+  "sdk_build": "native_vendor_source_candidate_not_sdk_verified",
+  "publishable": false,
+  "limitations": "No physical router test, LAN interface, packet filtering, NaiLink co-existence, package signature distribution, or startup/reboot/upgrade/restore acceptance; cannot include in publicly verified sdk matrix."
+}

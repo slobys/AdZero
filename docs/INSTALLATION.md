@@ -18,7 +18,7 @@ curl -fL --proto '=https' --proto-redir '=https' https://raw.githubusercontent.c
 
 `--check` 只执行严格平台和包 SHA-256 检查，不调用软件包安装、DNS 修改或旧版恢复；检查需要下载发行目录和安装包。**未通过 SDK 兼容性检查时仍拒绝跨固件安装。**
 
-**ImmortalWrt x86/64：** v0.21.5 的 SDK 矩阵扩展到 ImmortalWrt 24.10.6（IPK）与 25.12.2（APK），保持固件 ID/版本/target/包管理器严格匹配，不把全部 ImmortalWrt 当作通用兼容。iStoreOS 暂未编译专用安装包，仍须等待其原生 Buildroot / ABI 验证，不要改写固件 ID 绕过检查。
+**ImmortalWrt x86/64：** v0.21.5 的 SDK 矩阵扩展到 ImmortalWrt 24.10.6（IPK）与 25.12.2（APK），保持固件 ID/版本/target/包管理器严格匹配，不把全部 ImmortalWrt 当作通用兼容。iStoreOS 25.12.6（修订 2026102312）的原生 APK 已完成隔离虚拟机安装与六个依赖闭环测试，但还没有完成真实路由器 LAN、代理、DNS 和恢复验收，也没有加入公开发行包；请勿改写固件 ID 绕过检查。
 
 安装后打开「服务 → AdZero」。如果只想安装而不自动开启，直接选菜单 **2**。需要供自动化使用、不要显示菜单时，可显式运行：
 
