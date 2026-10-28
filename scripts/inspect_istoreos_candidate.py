@@ -17,11 +17,44 @@ from build_ipk import version
 from build_sdk import PACKAGE, read_config, source_hash
 from check_sdk_packages import inspect
 from probe_istoreos import SOURCE_COMMIT, METADATA_SHA256
+from prepare_istoreos_source import FEED_LINE
 
 FIRMWARE_VERSION = "25.12.6"
 FIRMWARE_REVISION = "2026102312"
 FIRMWARE_IMAGE_SHA256 = "48791c15b9fa7c261c519825020eaaf7792f06afbc495dd314966ffb13691d32"
 
+
+
+def verify_pinned_vendor_feeds(source, run):
+    """Require the exact vendor-published feed manifest and all checked-out Git SHAs."""
+    manifest = source / "feeds.conf"
+    if (not manifest.is_file() or manifest.is_symlink()
+            or manifest.stat().st_size > 64 * 1024):
+        raise ValueError("Pinned iStoreOS vendor feeds.conf is missing, oversized or a symlink")
+    raw = manifest.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != METADATA_SHA256["feeds.buildinfo"]:
+        raise ValueError("Pinned vendor feed manifest differs from original firmware")
+    seen = set()
+    for line in raw.decode("utf-8").splitlines():
+        # Pin both official feed identity and immutable source commit.
+        match = FEED_LINE.fullmatch(line)
+        if match is None:
+            raise ValueError("Untrusted vendor feed declaration")
+        name, _origin, commit = match.groups()
+        if name in seen:
+            raise ValueError("Duplicate vendor feed declaration")
+        seen.add(name)
+        feed_path = source / "feeds" / name
+        if not feed_path.is_dir() or feed_path.is_symlink():
+            raise ValueError(f"Missing pinned vendor feed: {name}")
+        actual = run(["git", "-C", str(feed_path), "rev-parse", "HEAD"],
+                     text=True).strip()
+        if actual != commit:
+            raise ValueError(f"Vendor feed revision drift: {name}")
+    if len(seen) != 13:
+        raise ValueError("Incomplete pinned iStoreOS vendor feed set")
+    return {"feed_count": len(seen), "feeds_sha256": digest}
 
 def validate(source, run=subprocess.check_output, package_inspector=inspect):
     source = Path(source).resolve()
@@ -37,6 +70,7 @@ def validate(source, run=subprocess.check_output, package_inspector=inspect):
     actual_git_head = run(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
     if actual_git_head != SOURCE_COMMIT:
         raise ValueError("Git source HEAD differs from pinned iStoreOS firmware")
+    pinned_feeds = verify_pinned_vendor_feeds(source, run)
     config = read_config(source)
     required = {
         "CONFIG_VERSION_DIST": "iStoreOS",
@@ -80,6 +114,7 @@ def validate(source, run=subprocess.check_output, package_inspector=inspect):
         "firmware_image_sha256_reference": FIRMWARE_IMAGE_SHA256,
         "vendor_source_commit": SOURCE_COMMIT,
         "vendor_metadata_sha256": METADATA_SHA256,
+        "vendor_feeds_checked": pinned_feeds,
         "source_sha256": local_sha,
         "package": binary.name,
         "sha256": digest,

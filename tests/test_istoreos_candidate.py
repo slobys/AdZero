@@ -6,6 +6,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -22,6 +23,26 @@ class IstoreNativeCandidateTest(unittest.TestCase):
         self.base = Path(self.tmp.name)
         self.source = self.base / "vendor-source"
         self.source.mkdir()
+        names = (
+            "packages", "luci", "routing", "telephony", "video", "store",
+            "third", "third_party", "diskman", "oaf", "linkease_nas",
+            "linkease_nas_luci", "jjm2473_apps"
+        )
+        self.feeds = {name: f"{index + 1:040x}"
+                      for index, name in enumerate(names)}
+        feed_lines = [
+            f"src-git {name} https://github.com/istoreos/{name}.git^{commit}"
+            for name, commit in self.feeds.items()
+        ]
+        self.feed_file = self.source / "feeds.conf"
+        self.feed_file.write_text("\n".join(feed_lines) + "\n")
+        for name in names:
+            (self.source / "feeds" / name).mkdir(parents=True)
+        checksum = hashlib.sha256(self.feed_file.read_bytes()).hexdigest()
+        patch = mock.patch.dict(candidate.METADATA_SHA256,
+                                {"feeds.buildinfo": checksum})
+        patch.start()
+        self.addCleanup(patch.stop)
         shutil.copytree(PACKAGE, self.source / "package/luci-app-adzero")
         self.evidence = self.source / "adzero-source-provenance.json"
         self.evidence.write_text(json.dumps({
@@ -50,8 +71,13 @@ class IstoreNativeCandidateTest(unittest.TestCase):
         self.inspected = []
 
     def run_git(self, argv, text):
-        self.assertEqual(argv[:3], ["git", "-C", str(self.source)])
-        return SOURCE_COMMIT + "\n"
+        self.assertEqual(argv[:2], ["git", "-C"])
+        self.assertEqual(argv[-2:], ["rev-parse", "HEAD"])
+        if argv[2] == str(self.source):
+            return SOURCE_COMMIT + "\n"
+        folder = Path(argv[2])
+        self.assertEqual(folder.parent, self.source / "feeds")
+        return self.feeds[folder.name] + "\n"
 
     def inspect(self, binary, apk_tool):
         self.inspected.append((binary, apk_tool))
@@ -71,6 +97,9 @@ class IstoreNativeCandidateTest(unittest.TestCase):
         self.assertEqual(result["sha256"], hashlib.sha256(
             self.binary.read_bytes()).hexdigest())
         self.assertEqual(self.inspected, [(self.binary, self.apktool)])
+        self.assertEqual(result["vendor_feeds_checked"]["feed_count"], 13)
+        self.assertEqual(result["vendor_feeds_checked"]["feeds_sha256"],
+                         hashlib.sha256(self.feed_file.read_bytes()).hexdigest())
 
     def test_export_keeps_candidate_outside_vendor_tree(self):
         output = self.base / "evidence"
@@ -121,6 +150,29 @@ class IstoreNativeCandidateTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Git source HEAD"):
             candidate.validate(self.source, run=wrong_git,
                                package_inspector=self.inspect)
+
+    def test_feeds_are_not_trusted_if_manifest_or_checkout_drifted(self):
+        original = self.feed_file.read_bytes()
+        self.feed_file.write_bytes(original + b"# tampered\n")
+        with self.assertRaisesRegex(ValueError, "feed manifest differs"):
+            self.validate()
+        self.feed_file.write_bytes(original)
+        first = "packages"
+        original_ref = self.feeds[first]
+        self.feeds[first] = "0" * 40
+        with self.assertRaisesRegex(ValueError, "feed revision drift"):
+            self.validate()
+        self.feeds[first] = original_ref
+
+    def test_missing_or_symlinked_vendor_feed_is_rejected(self):
+        name = "packages"
+        folder = self.source / "feeds" / name
+        folder.rmdir()
+        with self.assertRaisesRegex(ValueError, "Missing pinned vendor feed"):
+            self.validate()
+        folder.symlink_to(self.source / "feeds" / "luci", target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "Missing pinned vendor feed"):
+            self.validate()
 
     def test_output_must_not_be_in_vendor_source(self):
         with self.assertRaisesRegex(ValueError, "outside the Buildroot"):

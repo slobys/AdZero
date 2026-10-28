@@ -75,9 +75,10 @@ python3 scripts/inspect_istoreos_candidate.py \
   --output /absolute/path/to/new-candidate-output
 ~~~
 
-检查器会核对厂商真实 Git 提交、锁定的来源元数据、构建配置、target/架构/包格式、当前 AdZero 源码及原生 APK 工具对封装内容的校验结果。只生成候选证据，报告明确保留 sdk_build=native_vendor_source_candidate_not_sdk_verified 和 publishable=false，绝不会自动将它升级为 SDK 验证通过。
+检查器会核对厂商真实 Git 提交、官方 feeds.buildinfo 的 SHA-256，以及 **13 个 feed 目录当前检出的 Git 提交是否与原厂逐项一致**；任何 SHA 漂移、缺失或符号链接都会拒绝。还会验证 Buildroot 构建配置、target/架构/包格式、当前 AdZero 源码及原生 APK 工具对封装内容的校验结果。只生成候选证据，报告明确保留 sdk_build=native_vendor_source_candidate_not_sdk_verified 和 publishable=false，绝不会自动将它升级为 SDK 验证通过。
 
 后续发布必须进一步在对应真实 iStoreOS 固件上验证依赖/ABI、安装和升级、DNS 拦截、NaiLink 等代理共存、重启和恢复。没有完成之前，当前公开 v0.21.5 的五组已验证固件目标不受影响，iStoreOS 仍不能通过公开安装器。
+
 ## Linux / WSL 复现
 
 需要 make、gcc/g++、ncurses 开发头文件、git、gawk、rsync、file、unzip、zstd、Python 3 和 Node。SDK 放在 Linux 文件系统，避免 Windows 挂载目录的大小写与权限差异。
