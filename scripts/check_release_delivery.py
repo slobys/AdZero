@@ -28,25 +28,39 @@ def check(directory):
     # Require the entire verified release matrix for distribution packages,
     # including vendor-specific builds. Tests of single-row release catalogs
     # deliberately use build_release.validate_release() directly instead.
-    from build_release import SUPPORTED_BUILDS
+    from build_release import SUPPORTED_BUILDS, SUPPORTED_REVISIONS
     catalog_rows = (directory / 'releases.tsv').read_text().splitlines()
     available = {
         (parts[2], parts[3], parts[4], parts[6])
         for line in catalog_rows if not line.startswith('#')
-        for parts in [line.split('\t')] if len(parts) == 7
+        for parts in [line.split('\t')] if len(parts) in (7, 8)
     }
     if available != set(SUPPORTED_BUILDS):
-        raise ValueError(f'Release must contain all exact SDK-verified identities; missing={set(SUPPORTED_BUILDS)-available}')
-    platforms = (
-        ('openwrt', '24.10.8', 'x86/64', 'x86_64', 'ipk', '24.10.8-x86_64.ipk'),
-        ('openwrt', '25.12.5', 'x86/64', 'x86_64', 'apk', '25.12.5-x86_64.apk'),
-        ('openwrt', '25.12.5', 'rockchip/armv8', 'aarch64_generic', 'apk', 'rockchip-armv8-aarch64_generic.apk'),
-        ('immortalwrt', '24.10.6', 'x86/64', 'x86_64', 'ipk', 'immortalwrt-24.10.6-x86_64.ipk'),
-        ('immortalwrt', '25.12.2', 'x86/64', 'x86_64', 'apk', 'immortalwrt-25.12.2-x86_64.apk'),
-    )
-    assert len(platforms) == len(SUPPORTED_BUILDS)
+        raise ValueError(
+            f'Release must contain all exact SDK-verified identities; '
+            f'missing={set(SUPPORTED_BUILDS)-available}'
+        )
+    # Maintain explicit per-platform acceptance. A future iStoreOS SDK row
+    # requires a pinned original firmware revision as well as its own package.
+    platforms = [
+        ('openwrt', '24.10.8', 'x86/64', 'x86_64', 'ipk', '24.10.8-x86_64.ipk', None),
+        ('openwrt', '25.12.5', 'x86/64', 'x86_64', 'apk', '25.12.5-x86_64.apk', None),
+        ('openwrt', '25.12.5', 'rockchip/armv8', 'aarch64_generic', 'apk', 'rockchip-armv8-aarch64_generic.apk', None),
+        ('immortalwrt', '24.10.6', 'x86/64', 'x86_64', 'ipk', 'immortalwrt-24.10.6-x86_64.ipk', None),
+        ('immortalwrt', '25.12.2', 'x86/64', 'x86_64', 'apk', 'immortalwrt-25.12.2-x86_64.apk', None),
+    ]
+    istore = ('istoreos', '25.12.6', 'x86/64', 'apk')
+    if istore in SUPPORTED_BUILDS:
+        if SUPPORTED_BUILDS[istore] != 'x86_64' or SUPPORTED_REVISIONS.get(istore) != '2026102312':
+            raise ValueError('Unknown iStoreOS build revision or ABI; refuse delivery')
+        platforms.append(
+            ('istoreos', '25.12.6', 'x86/64', 'x86_64', 'apk',
+             'istoreos-25.12.6-x86_64.apk', '2026102312')
+        )
+    if len(platforms) != len(SUPPORTED_BUILDS):
+        raise ValueError('The exact SDK-verified platform matrix lacks delivery tests')
     results = []
-    for firmware, version, target, arch, fmt, expected_suffix in platforms:
+    for firmware, version, target, arch, fmt, expected_suffix, revision in platforms:
         for ending in ('LF', 'CRLF'):
             kind = f'{firmware}-{version}-{target}-{fmt}'
             fixture = InstallerTest()
@@ -54,10 +68,14 @@ def check(directory):
             try:
                 if fmt == 'apk':
                     fixture.arm_apk(arch='aarch64' if target == 'rockchip/armv8' else 'x86_64')
-                original_id = {'openwrt': 'OpenWrt', 'immortalwrt': 'ImmortalWrt'}[firmware]
+                original_id = {
+                    'openwrt': 'OpenWrt', 'immortalwrt': 'ImmortalWrt',
+                    'istoreos': 'iStoreOS',
+                }[firmware]
                 fixture.write('etc/openwrt_release',
                               f"DISTRIB_ID='{original_id}'\nDISTRIB_RELEASE='{version}'\n"
-                              f"DISTRIB_TARGET='{target}'\nDISTRIB_ARCH='{arch}'\n")
+                              f"DISTRIB_TARGET='{target}'\nDISTRIB_ARCH='{arch}'\n"
+                              + (f"DISTRIB_REVISION='{revision}'\n" if revision else ''))
                 delivered = fixture.base / 'delivered'
                 shutil.copytree(directory, delivered)
                 if ending == 'CRLF':
