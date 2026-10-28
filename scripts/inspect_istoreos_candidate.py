@@ -57,7 +57,10 @@ def verify_pinned_vendor_feeds(source, run):
     return {"feed_count": len(seen), "feeds_sha256": digest}
 
 def validate(source, run=subprocess.check_output, package_inspector=inspect):
-    source = Path(source).resolve()
+    requested_source = Path(source)
+    if requested_source.is_symlink():
+        raise ValueError("Pinned vendor source must not be a symlink")
+    source = requested_source.resolve()
     evidence_path = source / "adzero-source-provenance.json"
     if not evidence_path.is_file() or evidence_path.is_symlink():
         raise ValueError("Original pinned iStoreOS source provenance is required")
@@ -127,11 +130,14 @@ def validate(source, run=subprocess.check_output, package_inspector=inspect):
 
 def export(source, output, run=subprocess.check_output, package_inspector=inspect):
     report = validate(source, run=run, package_inspector=package_inspector)
-    source = Path(source).resolve()
-    output = Path(output).resolve()
+    requested_source, requested_output = Path(source), Path(output)
+    if requested_source.is_symlink() or requested_output.is_symlink():
+        raise ValueError("Source or output must not be symlinked")
+    source = requested_source.resolve()
+    output = requested_output.resolve()
     if output == source or output.is_relative_to(source):
         raise ValueError("Export APK evidence outside the Buildroot source tree")
-    if output.exists() or output.is_symlink():
+    if output.exists():
         raise ValueError("Candidate output already exists; refusing overwrite")
     output.mkdir(parents=True)
     source_file = next((source / "bin/packages/x86_64").glob(

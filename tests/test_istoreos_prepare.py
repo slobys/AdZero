@@ -94,6 +94,14 @@ class IstoreSourcePreparationTest(unittest.TestCase):
                 source.prepare(self.directory, fetch=self.fetch)
         self.assertEqual((self.directory / "keep").read_text(), "preserve")
 
+    def test_dangling_symlink_is_not_a_safe_clone_destination(self):
+        self.directory.symlink_to(self.root / "missing-target",
+                                  target_is_directory=True)
+        with patch.dict(probe.METADATA_SHA256, self.pins, clear=True):
+            with self.assertRaisesRegex(ValueError, "destination is a symlink"):
+                source.prepare(self.directory, fetch=self.fetch)
+        self.assertFalse((self.root / "missing-target").exists())
+
     def test_rejects_untrusted_or_duplicate_feed_urls(self):
         good = self.files["feeds.buildinfo"]
         for bad in (good.replace(b"https://github.com/", b"https://evil.example/"),

@@ -67,6 +67,16 @@ python3 scripts/prepare_istoreos_source.py --directory "$HOME/istoreos-builds/is
 
 维护者在隔离的厂商 Buildroot 中准备 feeds 和 package/luci-app-adzero 源码后，执行 make defconfig、make tools/install、make toolchain/install、make target/linux/compile、make package/feeds/luci/luci-base/host/compile、make package/luci-app-adzero/compile。原厂 Linux 内核 .config 须由真实 target/linux/compile 生成，不能跳过内核依赖或伪造配置打包。
 
+为避免维护者漏掉必要的内核和 SDK 构建步骤，也提供**一条命令**自动完成本地原厂编译流程：
+
+~~~sh
+python3 scripts/build_istoreos_native.py \
+  --source /absolute/path/to/istoreos-vendor-source \
+  --output /absolute/path/to/new-candidate-output \
+  --jobs 4
+~~~
+
+该命令要求事先准备并校验 13 组固定 feeds，按顺序运行 defconfig、宿主工具、交叉工具链、原厂 Linux 内核、LuCI 宿主构建及 AdZero 原生 APK 构建，然后调用下述候选包检查器。已有构建结果可使用 Buildroot 原生增量编译；它不会删除用户目录、修改软路由、打版本标签或把候选 APK 视为 SDK 已发布包。默认并行 4 任务，可调范围 1–12。
 原生 APK 构建完成后，从 AdZero 源码目录运行以下检查命令：
 
 ~~~sh

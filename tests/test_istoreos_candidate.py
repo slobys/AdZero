@@ -174,6 +174,15 @@ class IstoreNativeCandidateTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Missing pinned vendor feed"):
             self.validate()
 
+    def test_symlinked_candidate_output_never_redirects_export(self):
+        alias = self.base / "alias"
+        target = self.base / "untrusted-path"
+        alias.symlink_to(target, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "must not be symlinked"):
+            candidate.export(self.source, alias, run=self.run_git,
+                             package_inspector=self.inspect)
+        self.assertFalse(target.exists())
+
     def test_output_must_not_be_in_vendor_source(self):
         with self.assertRaisesRegex(ValueError, "outside the Buildroot"):
             candidate.export(self.source, self.source / "evidence",
