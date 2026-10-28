@@ -6,7 +6,9 @@ import * as fs from 'fs';
 
 try {
 	let path=shift(ARGV);
-	if (!path || !match(path,/^\/tmp\/adzero-update\/releases\.[A-Za-z0-9]{8}$/)) exit(2);
+	// mktemp and Python tempfile may use '_' in their eight-character
+	// random suffix. Keep the exact private directory, stem and length.
+	if (!path || !match(path,/^\/tmp\/adzero-update\/releases\.[A-Za-z0-9_]{8}$/)) exit(2);
 	let stat=fs.lstat(path);
 	// rpcd normally runs as root; verify ownership against our actual UID so
 	// isolated OpenWrt userspace tests retain this same trust boundary.

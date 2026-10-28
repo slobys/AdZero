@@ -60,6 +60,24 @@ class OfficialReleaseParserTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), f"v0.21.5 {digest}")
 
+    def test_underscore_in_valid_mkstemp_suffix_is_accepted(self):
+        # Python tempfile's alphabet includes '_' and BusyBox mktemp can
+        # generate it as well. This previously caused intermittent CI and
+        # real update checks to fail despite an otherwise valid signed asset.
+        suffix = self.file.name.removeprefix("releases.")
+        self.assertEqual(len(suffix), 8)
+        target = self.file.with_name("releases._" + suffix[-7:])
+        self.file.rename(target)
+        self.file = target
+        self.addCleanup(target.unlink, missing_ok=True)
+        digest = "a" * 64
+        result = self.parse([{
+            "tag_name": "v0.21.5", "draft": False,
+            "assets": [{"name": "install.sh", "digest": "sha256:" + digest}],
+        }])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "v0.21.5 " + digest)
+
     def test_refuses_nonprivate_and_untrusted_release_files(self):
         self.file.chmod(0o644)
         result = self.parse([{"tag_name": "v0.21.5", "assets": []}])
