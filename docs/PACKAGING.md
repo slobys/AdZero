@@ -42,7 +42,7 @@ python3 scripts/fetch_sdk.py --firmware immortalwrt --release 24.10.6 --target x
 python3 scripts/fetch_sdk.py --firmware immortalwrt --release 25.12.2 --target x86/64 --directory "$HOME/vendor-sdks" --cache "$HOME/vendor-cache"
 ~~~
 
-24.10.6 使用 IPK，25.12.2 使用 APK。GitHub CI 已用两个独立的 ImmortalWrt 官方 SDK、各自 feeds 完成 v0.21.4 代码的实际封装和 LuCI 验证；证据见 docs/evidence/v0.21.5/vendor-sdk-builds.json。v0.21.5 正式发布之前必须使用新的 v0.21.5 源码重新编译，并与三个 OpenWrt 版本一起校验完整五项发行清单；即使 SDK 通过，也不意味着已在真实设备上验证过滤和回滚。
+24.10.6 使用 IPK，25.12.2 使用 APK。GitHub CI 已用两个独立的 ImmortalWrt 官方 SDK、各自 feeds 完成 v0.21.4 代码的实际封装和 LuCI 验证；证据见 docs/evidence/v0.21.5/vendor-sdk-builds.json。公开的 v0.21.5 已经使用对应源码重新编译并校验了五项完整发行包，且通过了公开资产下载、SHA-256 与 10 组隔离安装测试；即使 SDK 通过，也不意味着已在真实设备上验证过滤和回滚。
 
 iStoreOS 25.12.6-2026102312 x86/64 的官方 commit/config/feeds/版本索引可运行以下只读核验：
 
@@ -57,7 +57,9 @@ mkdir -p "$HOME/istoreos-builds"
 python3 scripts/prepare_istoreos_source.py --directory "$HOME/istoreos-builds/istoreos-25.12.6-2026102312"
 ~~~
 
-源码准备程序要求 GitHub 分支 HEAD 必须与官方 buildinfo 公布的 283d02639c740f8ae6e9425b48be8c61f152c6b8 完全相同，并使用官方 feeds.buildinfo 中的不可变提交 SHA。它不会覆盖已有目录、运行固件安装或冒充 SDK 验证。之后仍需原生 Buildroot 工具链和 SDK 编译，再核对固件 ABI、依赖和安装测试。缺少匹配该厂商构建的 SDK/ABI 验证之前，不发布 iStoreOS 二进制包，不跨平台借用普通 OpenWrt SDK。
+源码准备程序现会显式获取并脱离分支检出官方 buildinfo 公布的历史提交 283d02639c740f8ae6e9425b48be8c61f152c6b8（不依赖厂商分支日后不变化），并使用官方 feeds.buildinfo 中的不可变提交 SHA。它不会覆盖已有目录、运行固件安装或冒充 SDK 验证。之后仍需原生 Buildroot 工具链和 SDK 编译，再核对固件 ABI、依赖和安装测试。缺少匹配该厂商构建的 SDK/ABI 验证之前，不发布 iStoreOS 二进制包，不跨平台借用普通 OpenWrt SDK。
+
+**面向将来 iStoreOS SDK 的严格发行清单：** 当前其他固件仍使用 `sha256 / file / firmware / release / target / arch / format` 七列，iStoreOS 必须有第八列 `revision`，取固件内 `DISTRIB_REVISION` 的十位数字修订号。构建矩阵里的 iStoreOS SDK 条目必须明确固定相同修订号；构建报告、发行清单和路由器检测有任何差异即拒绝安装。此功能是预先加固，不解除当前 iStoreOS 尚无可发布包的限制。
 
 ## Linux / WSL 复现
 

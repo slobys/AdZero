@@ -218,6 +218,7 @@ FIRMWARE_LABEL=$(release_value DISTRIB_ID)
 VERSION=$(release_value DISTRIB_RELEASE)
 TARGET=$(release_value DISTRIB_TARGET)
 DECLARED_ARCH=$(release_value DISTRIB_ARCH)
+DECLARED_REVISION=$(release_value DISTRIB_REVISION)
 # The release catalog, not a hard-coded distro name, is authoritative.
 # Normalizing a distro ID does NOT imply another firmware SDK is compatible.
 case "$FIRMWARE_LABEL" in ''|*[!a-zA-Z0-9._+-]*) fail '固件 DISTRIB_ID 缺失或无效，请检查 /etc/openwrt_release。' ;; esac
@@ -227,6 +228,7 @@ case "$TARGET" in
 	*[!a-zA-Z0-9._/-]*) fail '固件 DISTRIB_TARGET 包含无效字符，请检查 /etc/openwrt_release。' ;;
 esac
 case "$DECLARED_ARCH" in *[!a-zA-Z0-9._+-]*) fail '固件 DISTRIB_ARCH 包含无效字符，请检查 /etc/openwrt_release。' ;; esac
+case "$DECLARED_REVISION" in *[!a-zA-Z0-9._+-]*) fail '固件 DISTRIB_REVISION 包含无效字符，请检查 /etc/openwrt_release。' ;; esac
 # OpenWrt BusyBox tr 1.36 may mis-handle paired character classes: OpenWrt -> OwenWrt.
 # Use explicit ASCII alphabets after the UCI ID character whitelist.
 FIRMWARE=$(printf '%s' "$FIRMWARE_LABEL" | tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz')
@@ -366,11 +368,32 @@ fetch releases.tsv "$TMP/releases.tsv"
 # A Windows-authored catalog may use CRLF. Remove only the line terminator.
 # Match the exact distributor, release, target and package format. Architecture
 # comes from the verified catalog row and must match the target package manager.
-ROW=$(awk -F '\t' -v fw="$FIRMWARE" -v ver="$VERSION" -v target="$TARGET" -v ext="$EXT" '{ sub(/\r$/, "", $0) } NF==7 && $3==fw && $4==ver && $5==target && $7==ext {print $1 " " $2 " " $6; n++} END {if(n!=1) exit 1}' "$TMP/releases.tsv") || {
-	# Show a bounded list of valid catalog identities. Never print remote
-	# package contents, arbitrary URLs, tokens or downloaded shell scripts.
-	AVAILABLE=$(awk -F '\t' '{sub(/\r$/, "", $0)} NF==7 && $3 ~ /^[a-z0-9._+-]+$/ && $4 ~ /^[a-zA-Z0-9._+-]+$/ && $5 ~ /^[a-zA-Z0-9._\/-]+$/ && $6 ~ /^[a-zA-Z0-9._+-]+$/ && ($7=="ipk" || $7=="apk") { if (++n<=8) printf "%s%s %s target=%s arch=%s (%s)", n==1?"":"; ",$3,$4,$5,$6,$7 } END {if(n>8) printf "; ..."}' "$TMP/releases.tsv")
-	fail "未找到唯一匹配的已发布 SDK 安装包：检测到 $FIRMWARE_LABEL $VERSION，target=$TARGET，格式=$EXT。当前发行包支持：${AVAILABLE:-无有效条目}。请勿跨固件强制安装；提供 /etc/openwrt_release 和 opkg print-architecture / apk --print-arch 以便扩展兼容矩阵。尚未停止保护或修改网络配置。"
+ROW=$(awk -F '\t' -v fw="$FIRMWARE" -v ver="$VERSION" -v target="$TARGET" -v ext="$EXT" -v rev="$DECLARED_REVISION" '
+  { sub(/\r$/, "", $0) }
+  (NF==7 || NF==8) && $3==fw && $4==ver && $5==target && $7==ext &&
+  (($3!="istoreos" && NF==7) || ($3=="istoreos" && NF==8 && rev!="" && $8==rev)) {
+    print $1 " " $2 " " $6; n++
+  }
+  END { if(n!=1) exit 1 }
+' "$TMP/releases.tsv") || {
+	# Only the exact iStoreOS revision can select an eight-column catalog row.
+	# All existing 7-column OpenWrt/ImmortalWrt rows remain unchanged.
+	AVAILABLE=$(awk -F '\t' '
+      { sub(/\r$/, "", $0) }
+      (NF==7 || NF==8) && $3 ~ /^[a-z0-9._+-]+$/ &&
+      $4 ~ /^[a-zA-Z0-9._+-]+$/ && $5 ~ /^[a-zA-Z0-9._\/-]+$/ &&
+      $6 ~ /^[a-zA-Z0-9._+-]+$/ && ($7=="ipk" || $7=="apk") {
+        if ($3=="istoreos") {
+          if (NF!=8 || $8 !~ /^[0-9]+$/ || length($8)!=10) next
+        } else if (NF!=7) next
+        if (++n<=8) {
+          printf "%s%s %s target=%s arch=%s (%s)", n==1?"":"; ",$3,$4,$5,$6,$7
+          if (NF==8) printf " revision=%s",$8
+        }
+      }
+      END {if(n>8) printf "; ..."}
+    ' "$TMP/releases.tsv")
+	fail "未找到唯一匹配的已发布 SDK 安装包：检测到 $FIRMWARE_LABEL $VERSION，revision=${DECLARED_REVISION:-未提供}，target=$TARGET，格式=$EXT。当前发行包支持：${AVAILABLE:-无有效条目}。请勿跨固件强制安装；提供 /etc/openwrt_release 和 opkg print-architecture / apk --print-arch 以便扩展兼容矩阵。尚未停止保护或修改网络配置。"
 }
 SUM=${ROW%% *}
 REST=${ROW#* }

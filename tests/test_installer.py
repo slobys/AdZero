@@ -102,15 +102,44 @@ fi
         for vendor, canonical in (("ImmortalWrt", "immortalwrt"),
                                   ("iStoreOS", "istoreos")):
             with self.subTest(vendor=vendor):
+                revision = "2026102312" if canonical == "istoreos" else ""
                 self.write("etc/openwrt_release",
                            f"DISTRIB_ID='{vendor}'\nDISTRIB_RELEASE='24.10.8'\n"
-                           "DISTRIB_TARGET='x86/64'\nDISTRIB_ARCH='x86_64'\n")
+                           "DISTRIB_TARGET='x86/64'\nDISTRIB_ARCH='x86_64'\n"
+                           + (f"DISTRIB_REVISION='{revision}'\n" if revision else ""))
                 (self.release / "releases.tsv").write_text(
-                    f"{self.sum}\tadzero-test.ipk\t{canonical}\t24.10.8\tx86/64\tx86_64\tipk\n")
+                    f"{self.sum}\tadzero-test.ipk\t{canonical}\t24.10.8\tx86/64\tx86_64\tipk"
+                    + (f"\t{revision}" if revision else "") + "\n")
                 self.run_installer("--no-enable")
                 self.assertEqual(self.log.read_text().splitlines(),
                                  ["opkg update", "opkg install"])
                 self.log.unlink()
+
+    def test_istoreos_revision_is_mandatory_and_must_match_exactly(self):
+        name = "istoreos"
+        expected_revision = "2026102312"
+        self.write("etc/openwrt_release",
+                   "DISTRIB_ID='iStoreOS'\nDISTRIB_RELEASE='25.12.6'\n"
+                   "DISTRIB_TARGET='x86/64'\nDISTRIB_ARCH='x86_64'\n"
+                   "DISTRIB_REVISION='2026102313'\n")
+        row = f"{self.sum}\tadzero-test.ipk\t{name}\t25.12.6\tx86/64\tx86_64\tipk"
+        (self.release / "releases.tsv").write_text(row + f"\t{expected_revision}\n")
+        result = self.run_installer(success=False)
+        self.assertIn("revision=2026102313", result.stderr)
+        self.assertIn("revision=2026102312", result.stderr)
+        self.assertFalse(self.log.exists())
+        self.write("etc/openwrt_release",
+                   "DISTRIB_ID='iStoreOS'\nDISTRIB_RELEASE='25.12.6'\n"
+                   "DISTRIB_TARGET='x86/64'\nDISTRIB_ARCH='x86_64'\n"
+                   "DISTRIB_REVISION='2026102312'\n")
+        # A legacy 7-field catalog can never authorize a vendor-specific
+        # iStoreOS firmware: a matching release number alone is insufficient.
+        (self.release / "releases.tsv").write_text(row + "\n")
+        self.run_installer(success=False)
+        self.assertFalse(self.log.exists())
+        (self.release / "releases.tsv").write_text(row + f"\t{expected_revision}\n")
+        self.run_installer("--no-enable")
+        self.assertEqual(self.log.read_text().splitlines(), ["opkg update", "opkg install"])
 
     def test_verified_future_target_requires_real_package_architecture(self):
         self.write("etc/openwrt_release",
@@ -132,6 +161,31 @@ fi
                    "DISTRIB_TARGET='x86/64'\nDISTRIB_ARCH='x86_64'\n")
         self.run_installer(success=False)
         self.assertFalse(self.log.exists())
+
+    def test_istoreos_actual_apk_platform_needs_matching_build_revision(self):
+        self.arm_apk(arch="x86_64", declared="x86_64")
+        package = self.release / "adzero-test.apk"
+        package.write_bytes((self.release / "adzero-test.ipk").read_bytes())
+        target = ("DISTRIB_ID='iStoreOS'\nDISTRIB_RELEASE='25.12.6'\n"
+                  "DISTRIB_TARGET='x86/64'\nDISTRIB_ARCH='x86_64'\n")
+        (self.release / "releases.tsv").write_text(
+            f"{self.sum}\tadzero-test.apk\tistoreos\t25.12.6\t"
+            "x86/64\tx86_64\tapk\t2026102312\n"
+        )
+        for actual in ("2026102313", "", "2026102312-extra"):
+            with self.subTest(actual_revision=actual):
+                self.write("etc/openwrt_release",
+                           target + (f"DISTRIB_REVISION='{actual}'\n" if actual else ""))
+                self.run_installer("--check", success=False)
+                self.assertFalse(self.log.exists())
+        self.write("etc/openwrt_release",
+                   target + "DISTRIB_REVISION='2026102312'\n")
+        result = self.run_installer("--check")
+        self.assertIn("包格式=apk", result.stdout)
+        self.assertFalse(self.log.exists())
+        self.run_installer("--no-enable")
+        self.assertEqual(self.log.read_text().splitlines(),
+                         ["apk check-local", "apk add-local"])
 
     def test_derivative_declared_arch_mismatch_rejected_before_install(self):
         self.write("etc/openwrt_release",

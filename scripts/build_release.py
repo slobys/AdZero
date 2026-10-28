@@ -35,13 +35,33 @@ def verified_builds(matrix_path=ROOT / "docs/compatibility-matrix.json"):
                 or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._+-]*", arch)):
             raise ValueError("Invalid verified SDK identity in compatibility matrix")
         key = (firmware, release, target, fmt)
+        revision = row.get("revision")
+        if firmware == "istoreos":
+            if not isinstance(revision, str) or not re.fullmatch(r"[0-9]{10}", revision):
+                raise ValueError("iStoreOS SDK identity requires a pinned ten-digit build revision")
+        elif revision is not None:
+            raise ValueError("Vendor revision must not appear on a non-iStoreOS SDK identity")
         if key in trusted:
             raise ValueError(f"Duplicate verified SDK identity: {key}")
         trusted[key] = row["arch"]
     return trusted
 
 
+def verified_revisions(matrix_path=ROOT / "docs/compatibility-matrix.json"):
+    """Return pinned build revisions, after validating the complete SDK matrix."""
+    valid = verified_builds(matrix_path)
+    matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+    return {
+        (row["firmware"], row["release"], row["target"], row["format"]): row["revision"]
+        for row in matrix.get("sdk_verified", [])
+        if row.get("sdk_build") == "passed"
+        and (row["firmware"], row["release"], row["target"], row["format"]) in valid
+        and row.get("revision") is not None
+    }
+
+
 SUPPORTED_BUILDS = verified_builds()
+SUPPORTED_REVISIONS = verified_revisions()
 
 
 def validate_release(output):
@@ -57,10 +77,13 @@ def validate_release(output):
         if row.startswith('#'):
             continue
         fields = row.split('\t')
-        if len(fields) != 7:
-            raise ValueError('Release catalog must have exactly seven fields')
-        sha, name, firmware, release, target, arch, fmt = fields
+        if len(fields) not in (7, 8):
+            raise ValueError("Release catalog must have seven fields, or eight for pinned iStoreOS revisions")
+        sha, name, firmware, release, target, arch, fmt = fields[:7]
+        revision = fields[7] if len(fields) == 8 else None
         identity = (firmware, release, target, fmt)
+        if revision != SUPPORTED_REVISIONS.get(identity):
+            raise ValueError("Release catalog contains an unverified firmware build revision")
         if SUPPORTED_BUILDS.get(identity) != arch or identity in identities:
             raise ValueError('Release catalog contains an unsupported or duplicate identity')
         if not re.fullmatch(r'[a-f0-9]{64}', sha) or not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9._+-]*', name):
@@ -86,6 +109,9 @@ def bundle(manifests, output):
         identity = (report["firmware_declared"], report["release_declared"], report["target_observed"], report["package_format"])
         if SUPPORTED_BUILDS.get(identity) != report["package_arch_observed"]:
             raise ValueError("Release/target/format/SDK architecture is not in the supported build matrix")
+        revision = SUPPORTED_REVISIONS.get(identity)
+        if report.get("revision_declared") != revision:
+            raise ValueError("Build revision must match the exact SDK-verified vendor firmware revision")
         if identity in seen:
             raise ValueError("Duplicate build identity in release")
         seen.add(identity)
@@ -95,7 +121,12 @@ def bundle(manifests, output):
         target_part = '' if report['target_observed'] == 'x86/64' else report['target_observed'].replace('/', '-') + '-'
         name = f"adzero-{report['firmware_declared']}-{report['release_declared']}-{target_part}{report['package_arch_observed']}.{report['package_format']}"
         shutil.copyfile(package, output / name)
-        rows.append("\t".join((report["sha256"], name, report["firmware_declared"], report["release_declared"], report["target_observed"], report["package_arch_observed"], report["package_format"])))
+        fields = [report["sha256"], name, report["firmware_declared"],
+                  report["release_declared"], report["target_observed"],
+                  report["package_arch_observed"], report["package_format"]]
+        if revision is not None:
+            fields.append(revision)
+        rows.append("\t".join(fields))
         reports.append(report)
     (output / "releases.tsv").write_text("# sha256\tfile\tfirmware\trelease\ttarget\tarch\tformat\n" + "\n".join(rows) + "\n", encoding='utf-8', newline='\n')
     (output / "build-provenance.json").write_text(json.dumps(reports, indent=2) + "\n", encoding='utf-8', newline='\n')
