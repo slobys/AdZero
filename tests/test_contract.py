@@ -44,6 +44,13 @@ class PackageContractTest(unittest.TestCase):
         self.assertIn("+adblock-fast", makefile)
         self.assertIn("+rpcd-mod-file", makefile)
         self.assertIn("+ca-bundle", makefile)
+        self.assertIn("+tcpdump ", makefile)
+        self.assertNotIn("+tcpdump-mini", makefile)
+        # The vendor mini package provides tcpdump; an installed full
+        # tcpdump must not be replaced by a mini-only dependency.
+        observer = (PACKAGE / "root/usr/libexec/adzero/observe").read_text()
+        self.assertIn("command -v tcpdump", observer)
+        self.assertIn("不影响广告过滤", observer)
         self.assertIn("Package/luci-app-adzero/prerm", makefile)
         self.assertIn("/usr/libexec/adzero/ctl disable", makefile)
 

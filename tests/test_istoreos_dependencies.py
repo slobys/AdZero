@@ -126,6 +126,12 @@ class OriginalFirmwareClosureTest(unittest.TestCase):
                     if p.name.startswith(name + "-"))],
             )
 
+    def test_original_full_tcpdump_cannot_be_replaced_by_mini_dependency(self):
+        self.installed.add("tcpdump")
+        self.meta["luci-app-adzero"]["depends"].append("tcpdump-mini")
+        with self.assertRaisesRegex(ValueError, "replace the original full tcpdump"):
+            self.call()
+
     def test_missing_transitive_package_fails_closed(self):
         (self.folder / "libnetfilter-cthelper0-1.0.0-r2.apk").unlink()
         with self.assertRaisesRegex(ValueError, "Missing or ambiguous"):

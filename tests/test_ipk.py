@@ -54,7 +54,7 @@ class IpkPackagingTest(unittest.TestCase):
         self.assertIn("Package: luci-app-adzero\n", body)
         self.assertIn("Version: 0.21.5-r1\n", body)
         self.assertIn("Architecture: all\n", body)
-        self.assertIn("Depends: luci-base, adblock-fast, curl, rpcd-mod-file, rpcd-mod-ucode, ca-bundle, ucode, ucode-mod-fs, ucode-mod-uci, ucode-mod-ubus, ucode-mod-uloop, ucode-mod-socket, tcpdump-mini, conntrack, coreutils-timeout\n", body)
+        self.assertIn("Depends: luci-base, adblock-fast, curl, rpcd-mod-file, rpcd-mod-ucode, ca-bundle, ucode, ucode-mod-fs, ucode-mod-uci, ucode-mod-ubus, ucode-mod-uloop, ucode-mod-socket, tcpdump, conntrack, coreutils-timeout\n", body)
         self.assertEqual(control["conffiles"][1], b"/etc/config/adzero\n")
         self.assertEqual(control["postinst"][0].mode & 0o777, 0o755)
         self.assertIn(b"IPKG_INSTROOT", control["postinst"][1])

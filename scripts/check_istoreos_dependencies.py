@@ -86,6 +86,11 @@ def closure(source, image, *, inspect=validate_candidate, installed_reader=origi
     dependencies = meta.get("depends")
     if not isinstance(dependencies, list) or not dependencies:
         raise ValueError("Native AdZero package has no declared runtime dependencies")
+    # The original iStoreOS image contains the full tcpdump. Requiring the
+    # alternate mini package would silently remove the user's existing tool.
+    # Packet observation is optional; never treat this as a core dependency.
+    if "tcpdump" in installed and "tcpdump-mini" in dependencies:
+        raise ValueError("Mandatory tcpdump-mini would replace the original full tcpdump")
     queue = list(dependencies)
     required, selected = set(), {}
     while queue:

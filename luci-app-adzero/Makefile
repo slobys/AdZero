@@ -6,7 +6,9 @@ PKG_LICENSE:=MIT
 
 LUCI_TITLE:=AdZero - zero-configuration ad blocking
 LUCI_DESCRIPTION:=One-click adblock-fast control with cautious proxy/DNS compatibility diagnostics
-LUCI_DEPENDS:=+luci-base +adblock-fast +curl +rpcd-mod-file +rpcd-mod-ucode +ca-bundle +ucode +ucode-mod-fs +ucode-mod-uci +ucode-mod-ubus +ucode-mod-uloop +ucode-mod-socket +tcpdump-mini +conntrack +coreutils-timeout
+# Depend on the shared tcpdump provider: tcpdump-mini PROVIDES tcpdump.
+# Existing full tcpdump OR tcpdump-mini satisfies it without forced replacement.
+LUCI_DEPENDS:=+luci-base +adblock-fast +curl +rpcd-mod-file +rpcd-mod-ucode +ca-bundle +ucode +ucode-mod-fs +ucode-mod-uci +ucode-mod-ubus +ucode-mod-uloop +ucode-mod-socket +tcpdump +conntrack +coreutils-timeout
 LUCI_PKGARCH:=all
 # Keep scoped CSS custom properties intact across older SDK CSS minifiers.
 LUCI_MINIFY_CSS:=0

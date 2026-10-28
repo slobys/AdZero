@@ -5,7 +5,10 @@ umask 077
 case "${1:-status}" in
  status|start-test|recent-start|recent-stop|reset-stats) exec ucode -S /usr/libexec/adzero/observe.uc -- "$@" ;;
  run)
-  command -v tcpdump >/dev/null 2>&1 || exit 1
+  command -v tcpdump >/dev/null 2>&1 || {
+    echo "AdZero: DNS 采样需要 tcpdump 或 tcpdump-mini；不影响广告过滤。" >&2
+    exit 1
+  }
   device=$(ubus call network.interface.lan status | jsonfilter -e '@.l3_device')
   case "$device" in ''|*[!a-zA-Z0-9_.:-]*) exit 1 ;; esac
   [ -d "/sys/class/net/$device" ] || exit 1
