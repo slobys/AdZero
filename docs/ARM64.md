@@ -1,6 +1,6 @@
 # AdZero：三种固件 ARM64 适配与验收
 
-> 本页 ARM64 新目标仍是**未完成实体设备认证的候选**；其中四组 OpenWrt/ImmortalWrt ARM64 与两组 iStoreOS ARM64 已分别通过**独立公开 Beta** 提供用户自愿试装。常规稳定安装器仍只接受 `docs/compatibility-matrix.json` 的 `sdk_verified`，不会选择 Beta 候选。
+> 本页 ARM64 新目标仍是**未完成实体设备认证的候选**；四组 OpenWrt/ImmortalWrt 25.12 ARM64、两组 iStoreOS 25.12 ARM64 及两组 iStoreOS 24.10.8 ARM64 均已通过**各自独立的公开 Beta** 提供自愿试装。常规稳定安装渠道仍只接受 `docs/compatibility-matrix.json` 的 `sdk_verified`，不能将 Beta 视为全系列兼容。
 
 ## 当前目标
 
@@ -13,6 +13,8 @@
 | ImmortalWrt | 25.12.2 / mediatek/filogic | 独立厂商 SDK 编译、APK/LuCI 检查通过；独立 ARM64 Beta 公开试装，真机待测 |
 | iStoreOS | 25.12.6-2026102312 / armsr/armv8 | 原生 APK 编译通过；6 依赖闭环、7 包离线模拟通过；独立 iStoreOS Beta 已公开，真机待测 |
 | iStoreOS | 25.12.6-2026102312 / rockchip/armv8（R6XS） | 原生 APK 编译通过；6 依赖闭环、7 包离线模拟通过；独立 iStoreOS Beta 已公开，真机待测 |
+| iStoreOS | 24.10.8-2026073111 / armsr/armv8 | 原生 OPKG/IPK 和 7 依赖闭环、8 包原厂 OPKG 离线模拟通过；[Beta.1](RELEASE_ISTOREOS_24108_BETA_0.21.5.md) 已公开，真机待测 |
+| iStoreOS | 24.10.8-2026073111 / rockchip/armv8（R6XS） | 原生 OPKG/IPK 和 7 依赖闭环、8 包原厂 OPKG 离线模拟通过；[Beta.1](RELEASE_ISTOREOS_24108_BETA_0.21.5.md) 已公开，真机待测 |
 
 四个已通过 CI 的候选包均来自提交 `61e1334`，下载后的 APK SHA-256 与相应 SDK 构建清单一致；详细记录在 [`evidence/arm64-pr10-sdk-builds.json`](evidence/arm64-pr10-sdk-builds.json)。**`ci_passed_unreleased` 仍只表示 SDK 编译与静态检查，不能直接成为稳定 `sdk_verified`**。这些原生 APK 通过 [独立 ARM64 Beta.2 安装渠道](RELEASE_ARM64_BETA_0.21.5_BETA2.md) 公开供自愿测试者使用：4 个固件专用包哈希固定，默认不启用过滤，依赖来自对应官方 HTTPS 源或经限定的中科大镜像（同厂商、精确版本或固件滚动 25.12，且 target/架构必须一致）；不覆盖已发布 v0.21.5，也不会出现在稳定版的普通 LuCI 在线更新中。
 

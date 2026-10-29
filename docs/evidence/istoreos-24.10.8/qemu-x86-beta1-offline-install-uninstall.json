@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "observed_date": "2026-10-29",
+  "release_tag": "v0.21.5-istoreos-24108-beta.1",
+  "channel": "public_opt_in_beta_not_stable",
+  "firmware": "iStoreOS",
+  "release": "24.10.8",
+  "revision": "2026073111",
+  "profile": "x86_64",
+  "target": "x86/64",
+  "package_manager": "opkg",
+  "native_package": "luci-app-adzero",
+  "native_package_version": "0.21.5-r1",
+  "original_factory_raw_image_sha256": "431470911d0aac490c14e744c8213c057819f1c1ac72bc66aa428bf4f8315170",
+  "published_archive_sha256": "10fe47d0c83ce0151d87d19550173665931fb7d0dbb743a9f6a18fcb153b3e44",
+  "published_installer_sha256": "d30c309e650442708dcfda552fa4f62e1530916e93ac2d9341f25db5503a2766",
+  "published_release_sha256sums_verified": true,
+  "environment": {
+    "guest": "unmodified original iStoreOS 24.10.8 x86_64 factory combined disk image as QEMU read-only backing",
+    "emulator": "qemu-system-x86_64, TCG software emulation (KVM permission denied)",
+    "system_disk": "ephemeral qcow2 copy-on-write overlay with original factory image as read-only base",
+    "release_disk": "ephemeral 32 MiB ext4 image containing unmodified public Beta.1 release files and one local test script",
+    "guest_release_mount": "/mnt/adzero-data",
+    "network": "-nic none; offline",
+    "guest_opkg_version": "38eccbb1fd694d4798ac1baf88f9ba83d1eac616 (2024-10-16)",
+    "host_timeout_seconds": 160,
+    "host_timeout_terminated_vm_after_checks": true,
+    "guest_reboot_tested": false,
+    "physical_router_touched": false
+  },
+  "guest_checks": {
+    "real_published_installer_readonly_check": "passed; OPKG --noaction verified offline without package installation",
+    "real_published_installer_install": "passed; OPKG printed Installing/Configuring luci-app-adzero (0.21.5-r1)",
+    "post_install_list_installed": "luci-app-adzero - 0.21.5-r1",
+    "post_install_config_file_exists": true,
+    "post_install_beta_marker_exists": true,
+    "post_install_managed_dns_state_absent": true,
+    "post_install_proxy_adapter_state_absent": true,
+    "filtering_default_off": "passed; installer explicitly reported default DNS filtering disabled",
+    "real_published_installer_uninstall": "passed; OPKG printed Removing package luci-app-adzero",
+    "post_uninstall_list_installed_empty": true,
+    "post_uninstall_beta_marker_absent": true,
+    "guest_terminal_success_marker": "ADZERO_GUEST_UNINSTALL_PASS"
+  },
+  "diagnostics": {
+    "uninstall_nonfatal_warnings": [
+      "Command failed: Not found",
+      "Command failed: Not found"
+    ],
+    "warning_count": 2,
+    "warning_root_cause_verified": false,
+    "full_guest_serial_log_persisted": false,
+    "service_during_enable_or_live_dns_not_tested": true,
+    "guest_shutdown_or_reboot_not_tested": true,
+    "post_uninstall_shared_dependency_package_inventory_not_independently_attested": true
+  },
+  "arm64_guest_lifecycle_test": "not_run",
+  "physical_device_acceptance": "not_run",
+  "physical_lan_dns_ipv4_ipv6_proxy_reboot_and_failure_recovery": "not_run",
+  "stable_sdk_verified_changed": false,
+  "note": "This proves a real OPKG install/default-off/uninstall in a fully offline disposable x86 original-factory QEMU guest; it does NOT certify physical devices, ARM64 guests, LAN DNS, proxies, reboot or recovery."
+}
