@@ -36,6 +36,16 @@ curl -fL --proto '=https' --proto-redir '=https' https://raw.githubusercontent.c
 
 原始预备检查见 [旧候选证据](evidence/istoreos-24.10.8/original-image-opkg-dependency-readiness.json)，最终真实 Buildroot IPK、原厂 OPKG 模拟和全部发布 SHA 见 [Beta.1 最终证据](evidence/istoreos-24.10.8/public-beta-0.21.5-native-build-assets.json)。
 
+## 原厂 x86 虚拟机实装与卸载（2026-10-29）
+
+除上述三个目标的原厂 OPKG 离线模拟外，已在**原版 iStoreOS 24.10.8 x86/64** 固件镜像的 QEMU TCG 虚拟机中进行完整软件包操作。原始 RAW 镜像 SHA-256 为 `431470911d0aac490c14e744c8213c057819f1c1ac72bc66aa428bf4f8315170`；系统盘使用可丢弃的 QCOW2 写时复制层，额外只读来源的本地数据盘装载已通过 SHA256SUMS 校验的公开 Beta.1 安装器与 x86 IPK 压缩包。虚拟机**完全断网**，没有接触用户路由器。
+
+- 使用原厂 OPKG，公开安装器 `--check --local-dir` 在虚拟机内通过 `--noaction` 预检，未安装包或更改 DNS。
+- 公开安装器 `--install --local-dir` 实际安装并配置 `luci-app-adzero 0.21.5-r1`。虚拟机确认 OPKG 已登记、配置与 Beta 标记存在，未生成 AdZero 管理的 DNS/代理状态；安装器报告**默认关闭过滤**。
+- 公开安装器 `--uninstall` 通过，OPKG 不再列出 `luci-app-adzero`，Beta 安装标记已移除。卸载输出出现两条非致命的 `Command failed: Not found`，暂未确认来自何种清理调用，不能把日志视为完全无告警；原厂依赖包的卸载后完整清单未独立比对。
+
+详细的镜像与发布文件 SHA、测试边界、成功标记及警告见 [QEMU x86 实装证据](evidence/istoreos-24.10.8/qemu-x86-beta1-offline-install-uninstall.json)。虚拟机在完成上述检查后由宿主超时终止，**没有验证路由器重启、LAN DNS、启用过滤后的代理或异常恢复**；ARMSR/R6XS 未做等价虚拟机实装，更不能据此标记实体设备通过。稳定 `sdk_verified` 仍不变。
+
 ## 仍然需要真实设备试验
 
 虽然有原厂镜像与真实包管理器的隔离验证，尚无实体设备全部验收反馈。请优先用测试路由器验证安装/卸载、开启/关闭后 LAN IPv4/IPv6 DNS、PassWall/NaiLink/其他代理共存、重启、故障恢复。预发行不等于长期稳定认证。

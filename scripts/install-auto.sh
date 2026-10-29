@@ -154,6 +154,12 @@ case "$CHANNEL" in
 esac
 printf '%s\n' '================ AdZero 自动安装入口 ================'
 printf '已识别：%s %s\n设备目标：%s\n包架构：%s\n' "$FW_LABEL" "$VERSION" "$TARGET" "$ARCH"
+if [ -n "$REVISION" ]; then
+    printf '固件修订：%s\n' "$REVISION"
+fi
+if [ "$FW" = istoreos ] && [ "$TARGET" = rockchip/armv8 ]; then
+    printf '已确认板型：%s\n' "$BOARD"
+fi
 printf '自动选择：%s\n' "$DESCRIPTION"
 if [ "$CHANNEL" != regular ]; then
     info '这是独立测试渠道，尚未完成所有真实设备验收；首次建议安装但不启用过滤。'

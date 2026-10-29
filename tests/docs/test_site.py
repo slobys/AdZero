@@ -115,6 +115,47 @@ class Handbook(unittest.TestCase):
         self.assertIn('v0.21.5-istoreos-24108-beta.1', (self.output / 'compatibility.html').read_text(encoding='utf-8'))
         self.assertEqual((self.output / 'installation.html').read_text().count('<pre><code>'),1)
 
+    def test_device_acceptance_tracks_both_public_istoreos_beta_channels(self):
+        acceptance = (REPO / 'docs/DEVICE_ACCEPTANCE.md').read_text(encoding='utf-8')
+        arm64 = (REPO / 'docs/ARM64.md').read_text(encoding='utf-8')
+        compatibility = (REPO / 'docs/COMPATIBILITY.md').read_text(encoding='utf-8')
+        self.assertIn('iStoreOS 25.12.6 ARM64 公测验收', acceptance)
+        self.assertIn('iStoreOS 24.10.8 原生 IPK Beta.1 验收', acceptance)
+        self.assertIn('统一入口默认只打开中文菜单', acceptance)
+        self.assertNotIn('当前只能运行 [只读预检]', acceptance)
+        self.assertIn('24.10.8-2026073111 / armsr/armv8', arm64)
+        self.assertIn('24.10.8-2026073111 / rockchip/armv8', arm64)
+        for document in (arm64, compatibility):
+            self.assertIn('RELEASE_ISTOREOS_24108_BETA_0.21.5.md', document)
+        self.assertIn('physical_device_acceptance=not_run', acceptance)
+
+    def test_istoreos_24108_x86_qemu_install_evidence_is_guest_only(self):
+        evidence_dir = REPO / 'docs/evidence/istoreos-24.10.8'
+        guest = json.loads((evidence_dir / 'qemu-x86-beta1-offline-install-uninstall.json').read_text(encoding='utf-8'))
+        published = json.loads((evidence_dir / 'public-beta-0.21.5-native-build-assets.json').read_text(encoding='utf-8'))
+        self.assertEqual(guest['release_tag'], published['release_tag'])
+        self.assertEqual(guest['revision'], published['revision'])
+        self.assertEqual(guest['profile'], 'x86_64')
+        self.assertEqual(guest['published_archive_sha256'], published['profiles']['x86_64']['archive_sha256'])
+        self.assertEqual(guest['published_installer_sha256'], published['installer']['sha256'])
+        self.assertEqual(guest['original_factory_raw_image_sha256'], '431470911d0aac490c14e744c8213c057819f1c1ac72bc66aa428bf4f8315170')
+        for observed in ('real_published_installer_readonly_check',
+                         'real_published_installer_install',
+                         'real_published_installer_uninstall'):
+            self.assertIn('passed', guest['guest_checks'][observed])
+        self.assertTrue(guest['guest_checks']['post_install_managed_dns_state_absent'])
+        self.assertTrue(guest['guest_checks']['post_uninstall_beta_marker_absent'])
+        self.assertEqual(guest['diagnostics']['warning_count'], 2)
+        self.assertFalse(guest['diagnostics']['warning_root_cause_verified'])
+        self.assertEqual(guest['arm64_guest_lifecycle_test'], 'not_run')
+        self.assertEqual(guest['physical_device_acceptance'], 'not_run')
+        self.assertFalse(guest['stable_sdk_verified_changed'])
+        self.assertTrue(guest['environment']['host_timeout_terminated_vm_after_checks'])
+        self.assertFalse(guest['environment']['guest_reboot_tested'])
+        doc = (REPO / 'docs/ISTOREOS_24_10.md').read_text(encoding='utf-8')
+        self.assertIn('qemu-x86-beta1-offline-install-uninstall.json', doc)
+        self.assertIn('Command failed: Not found', doc)
+
     def test_broken_link_and_anchor_are_rejected(self):
         file = self.output / 'index.html'
         original = file.read_text(encoding='utf-8')

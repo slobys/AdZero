@@ -1,8 +1,8 @@
 # AdZero 设备验收
 
-## iStoreOS ARM64 安全试装验收（2026-10-29，均为待实机验收）
+## iStoreOS 25.12.6 ARM64 公测验收（2026-10-29，仍待实机验收）
 
-原厂 ARMSR 和 R6XS 已编译原生候选 APK、完成原厂依赖闭环及隔离数据库 7 包无网络模拟，但尚未在真实设备安装、修改 DNS 或测试 LAN。当前只能运行 [只读预检](ISTOREOS_PILOT.md)，严禁将这些候选包加入公共安装清单。
+原厂 ARMSR 和 R6XS 已完成原生 APK 编译、依赖闭环和 7 包离线模拟，现通过 [独立 Beta.3 渠道](RELEASE_ISTOREOS_BETA_0.21.5_BETA3.md) 自愿试装。**公开 Beta 不等于稳定版或真实设备认证**；未实际验证 LAN DNS、代理、重启及故障恢复的目标不得升级为 `sdk_verified`。以下私有候选的 [只读预检](ISTOREOS_PILOT.md) 仍可用于维护者核验，不代表必须使用私有包才能进入公开 Beta。
 
 - [ ] 非生产设备分别记录 `DISTRIB_ID`、版本、十位 revision、target、arch、APK CPU 架构；ARMSR 不借用 R6XS 依赖。
 - [ ] 确认有本地管理/救援方式，并备份网络、DNS、代理、AdBlock 配置（敏感原文不公开）；记录初始外网与 LAN 基线。
@@ -12,6 +12,18 @@
 - [ ] 获得单独实机安装授权与回滚方案后，先验证完整离线包管理器事务、Lua/rpcd/LuCI 加载、AdZero 默认关闭；无网络变更时仍可 SSH。
 - [ ] 分别测试启停、正常域名解析、广告规则内外 IPv4/IPv6 + UDP/TCP、NaiLink/PassWall/无代理、多 DNS 情况，异常必须回滚。
 - [ ] 验证重启、再次进入 LuCI、升级/卸载、网络故障与错误依赖时恢复原配置，确认可保持路由器访问；所有实机证据保留脱敏记录。
+
+## iStoreOS 24.10.8 原生 IPK Beta.1 验收（x86_64、ARMSR、R6XS）
+
+此渠道仅接受原厂固件 `24.10.8`、修订 `2026073111`，分别匹配 `x86/64`、`armsr/armv8`、官方 R6XS `rockchip/armv8`。使用 [独立 OPKG Beta.1](RELEASE_ISTOREOS_24108_BETA_0.21.5.md)，**不能混用 25.12 APK**。三套原厂 Buildroot IPK、21 份厂商依赖 IPK 与真实 OPKG `--noaction` 已验证；x86 原厂镜像另完成了 [QEMU 断网实际安装（默认关闭）与卸载](evidence/istoreos-24.10.8/qemu-x86-beta1-offline-install-uninstall.json)，伴随两条未定位的非致命卸载告警。ARM64 真实虚拟机实装、全部实体设备安装和 LAN 验收仍未完成。
+
+- [ ] 首次试装用非关键路由器，先保存本地控制台/救援方式及私有配置备份；不要把 IP、MAC、订阅、密码、密钥、原始 UCI 或私人域名上传到 Issues。
+- [ ] 运行统一入口 `sh /tmp/adzero-install-auto.sh --detect`，只读确认 ID、版本、revision、target、arch 和 OPKG；R6XS 必须验证 `board_name`，其他板型或修订一律拒绝。
+- [ ] 用 `sh /tmp/adzero-install-auto.sh --check` 下载固定 SHA 的专用菜单和三个目标之一的发布包，执行原厂 OPKG 离线 `--noaction`；若安装计划升级/删除/替换现有包，必须停止。
+- [ ] 菜单先选择 **2 安装但不启用过滤**，验证 AdZero 已登记、LuCI 能打开，原有 DNS、代理及正常上网未改变；确认 `/etc/adzero-24108-beta/installed` 本 Beta 标记和 `/etc/adzero-backups` 备份存在。
+- [ ] 人工确认 LAN 基线、可恢复路径后，才按明确确认步骤启用过滤；分别验证 LAN IPv4/IPv6、UDP/TCP、正常与拦截域名及 NaiLink/PassWall/无代理，不以路由器自身解析代替 LAN 设备结果。
+- [ ] 测试重启、重新进入 LuCI、重复安装应拒绝、故意损坏哈希应拒绝、菜单 **4 安全卸载**；必须先关闭过滤并恢复 AdZero 管理的 DNS/代理状态，原系统依赖包与备份不得被擅自删除。
+- [ ] 只记录脱敏的每个架构真实设备结果。未收到真实设备成功证据前，继续保留 `physical_device_acceptance=not_run` 和稳定白名单不变。
 
 ## v0.12.0 统计与效果检测
 
@@ -36,7 +48,7 @@
 - [ ] Rockchip 的 APK/固件 ABI 不匹配时在备份、安装之前停止；不会选到 x86 包或其他 ARM target 的包。
 - [ ] 未验证版本、厂商、target、架构、双包管理数据库和错误 SHA-256 在安装前失败。
 - [ ] /etc/config 备份存在且权限受限，依赖来自当前固件源，没有升级其他软件包。
-- [ ] 直接装包默认关闭；一键脚本默认启用；--no-enable 只安装。
+- [ ] 统一入口默认只打开中文菜单、不会自动安装；独立 Beta 菜单的默认安装选项关闭 DNS 过滤。常规稳定渠道及旧版脚本的启用行为须分别测试，不能把旧版默认值套用到 Beta。
 - [ ] LuCI 复用现有会话，开关/刷新/重查可用，无二次登录和多余 RPC 权限。
 - [ ] force_dns=0、严格 HTTPS 验证生效；关闭后只恢复自己管理且未被外部改变的值。
 - [ ] 空规则、下载失败、证书错误不显示过滤成功。

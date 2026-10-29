@@ -190,6 +190,11 @@ exit 0
                 self.assertIn("自动选择：", result.stdout)
                 self.assertIn(row[1], result.stdout)
                 self.assertIn(row[2], result.stdout)
+                self.assertIn('固件修订：' + row[4], result.stdout)
+                if row[0] == 'iStoreOS' and row[2] == 'rockchip/armv8':
+                    self.assertIn('已确认板型：fastrhino,r6xs', result.stdout)
+                else:
+                    self.assertNotIn('已确认板型：', result.stdout)
                 self.assertFalse(self.curl_log.exists())
                 self.assertFalse(self.exec_log.exists())
 
