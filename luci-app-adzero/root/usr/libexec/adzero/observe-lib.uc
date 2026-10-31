@@ -31,7 +31,7 @@ export function dns(raw){
 				}p+=size;
 			}
 		}
-		return {id:be16(raw,0),name:q.value,qtype,response,positive:response&&!(flags&0x0200)&&rcode==0&&positive,
+		return {id:be16(raw,0),name:q.value,qtype,response,rcode,positive:response&&!(flags&0x0200)&&rcode==0&&positive,
 			blocked:response&&!(flags&0x0200)&&(rcode==3||rcode==5||rcode==0&&!positive&&(be16(raw,6)==0||blackhole))};
 	}catch(e){return null;}
 };
@@ -111,7 +111,7 @@ export function recent(){
 };
 export function tracker(onblocked){
 	let pending={},pending_count=0,seen={},seen_count=0,rules={},generation='',active=false,verify=null;
-	let counts={queries:0,blocked:0,answered:0,overflow:0,matched:0,matched_answered:0,matched_positive:0};
+	let counts={queries:0,blocked:0,answered:0,overflow:0,matched:0,matched_answered:0,matched_positive:0,matched_error:0};
 	let current={};for(let k in keys(counts))current[k]=0;
 	function bucket(){return {samples:0,total_us:0,maximum_us:0,slow:0};}
 	let normal=bucket(),blocked=bucket(),unanswered={udp:0,tcp:0};
@@ -140,7 +140,7 @@ export function tracker(onblocked){
 				let req=pending[id];if(!req||now-req.at>15)return;delete pending[id];pending_count--;seen[id]=now;seen_count++;
 				if(req.test){if(verify&&req.generation==generation){if(d.name==verify.sample&&d.blocked)verify.blocked=true;if(d.name==verify.control&&d.positive)verify.normal=true;}return;}
 				latency_sample(req,d);
-				count('answered');if(req.blocked){count('matched_answered');if(d.positive)count('matched_positive');if(d.blocked){count('blocked');if(onblocked)onblocked(d,now);}}return;
+				count('answered');if(req.blocked){count('matched_answered');if(d.positive)count('matched_positive');if(d.rcode==2)count('matched_error');if(d.blocked){count('blocked');if(onblocked)onblocked(d,now);}}return;
 			}
 			if(pending[id]||seen[id]!=null&&now-seen[id]<15)return;
 			if(pending_count>=4096||seen_count>=32768){count('overflow');return;}

@@ -183,7 +183,7 @@ class ObserveTest(unittest.TestCase):
 
     def test_queries_alone_and_unrelated_nxdomain_never_count(self):
         result=self.track([self.event(),self.event(domain='other.example',ident=43),self.event(True,domain='other.example',ident=43)])
-        self.assertEqual(result['counts'],{'queries':2,'blocked':0,'answered':1,'overflow':0,'matched':1,'matched_answered':0,'matched_positive':0})
+        self.assertEqual(result['counts'],{'queries':2,'blocked':0,'answered':1,'overflow':0,'matched':1,'matched_answered':0,'matched_positive':0,'matched_error':0})
 
     def test_duplicate_query_and_response_are_counted_once(self):
         result=self.track([self.event(),self.event(),self.event(True),self.event(True)])
@@ -198,6 +198,28 @@ class ObserveTest(unittest.TestCase):
         self.assertEqual(result['counts']['blocked'],1)
         self.assertEqual(result['counts']['answered'],1)
         self.assertEqual(result['counts'],result['current'])
+
+    def test_cooked_bridge_duplicate_views_and_redirected_requests(self):
+        # Physical ingress retains :53, bridge ingress is already DNATed;
+        # bridge and member egress both carry the same original DNS reply.
+        query=packet(dns(),link=276)
+        redirected=bytearray(query);struct.pack_into('!H',redirected,42,43771)
+        reply=packet(dns(response=True,rcode=5),response=True,link=276)
+        events=self.packets(pcap(query,bytes(redirected),reply,reply,link=276),chunk=13)
+        self.assertEqual(len(events),3)
+        result=self.run_code('tracker',rules=['ads.example'],events=[{'at':i+1,'dns':e} for i,e in enumerate(events)])
+        self.assertEqual(result['counts']['queries'],1)
+        self.assertEqual(result['counts']['blocked'],1)
+        self.assertEqual(result['counts']['answered'],1)
+
+    def test_rule_hit_servfail_is_explained_but_never_counted_as_block(self):
+        failed=self.decode(dns(response=True,rcode=2))
+        self.assertEqual(failed['rcode'],2)
+        result=self.track([self.event(),self.event(True,rcode=2,blocked=False),self.event(ident=43,domain='normal.example'),self.event(True,ident=43,domain='normal.example',rcode=2,blocked=False)])
+        self.assertEqual(result['counts']['matched_error'],1)
+        self.assertEqual(result['counts']['blocked'],0)
+        self.assertEqual(result['counts']['answered'],2)
+        self.assertEqual(result['recorded'],[])
 
     def test_reset_request_rejects_stale_future_wrong_boot_or_untyped_time(self):
         request={'schema':1,'nonce':'a'*32,'boot':'boot-one','requested':100.5}

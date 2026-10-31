@@ -626,6 +626,9 @@ function check(value, label) { assert.ok(value, label); assertions++; }
   check(nodes(root,n=>n.tag==='details'&&(n.attrs.class||'').includes('az-network-settings')&&!n.open).length===1,'DNS and routing are collapsed by default');
   check(text(root).includes('不代表网页广告个数')&&text(root).includes('加密 DNS'),'statistics explain their actual measurement scope');
   app.observation={available:true,active:true,current:{}};
+  app.observation.current={matched_positive:2,matched_error:3};
+  check(text(app.renderObservationHealth()).includes('2 条命中规则')&&text(app.renderObservationHealth()).includes('3 条命中规则')&&text(app.renderObservationHealth()).includes('SERVFAIL')&&text(app.renderObservationHealth()).includes('未计入已拦截'),'positive replies and matched DNS failures are diagnosed separately without claiming blocks');
+  app.observation.current={};
   app.currentStatus={dns_handoff:{state:'ready',repaired:2}};
   check(text(app.renderObservationHealth()).includes('旧 UDP DNS 会话：2')&&text(app.renderObservationHealth()).includes('不代表网站连接已验证'),'handoff count does not imply end-to-end verification');
   app.currentStatus.dns_handoff={reason:'conntrack_missing'};
