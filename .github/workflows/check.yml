@@ -41,6 +41,7 @@ jobs:
           echo '8e34fc298390875de416e6a4afcb8cabeceb25d9aa8506c1a2f9353cf702ea5f  /tmp/yq' | sha256sum -c -
           sudo install -m 755 /tmp/yq /usr/local/bin/yq
           python3 scripts/check_openwrt_runtime.py
+          python3 scripts/check_opkg_inventory.py
           sudo python3 scripts/check_rpc.py
           sudo python3 scripts/check_proxy_runtime.py
           sudo python3 scripts/check_update_runtime.py

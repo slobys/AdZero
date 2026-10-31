@@ -3,7 +3,7 @@
 set -eu
 set -f
 umask 077
-BASE_URL=${ADZERO_BASE_URL:-https://github.com/slobys/AdZero/releases/download/v0.23.3}
+BASE_URL=${ADZERO_BASE_URL:-https://github.com/slobys/AdZero/releases/download/v0.23.4}
 LOCAL_DIR=
 ENABLE=1
 ENABLE_EXPLICIT=0
@@ -47,8 +47,20 @@ opkg_native() {
     if [ -n "$ROOT" ]; then opkg --offline-root "$ROOT" "$@"; else opkg "$@"; fi
 }
 package_installed() {
-    if [ "$PM" = apk ]; then apk_native info -e "$1" >/dev/null 2>&1;
-    else opkg_native status "$1" 2>/dev/null | grep -q '^Status: .* ok installed$'; fi
+    if [ "$PM" = apk ]; then
+        apk_native info -e "$1" >/dev/null 2>&1
+    else
+        # OPKG flags include user/hold, independently of the installed state.
+        # Require a successful native query and one exact package record;
+        # unpacked/config-files, wrong names and ambiguous output are rejected.
+        installed_status=$(opkg_native status "$1" 2>/dev/null) || return 1
+        printf '%s\n' "$installed_status" | awk -v wanted="$1" '
+          {sub(/\r$/, "", $0)}
+          /^Package:/ {packages++; exact=(NF==2 && $2==wanted)}
+          /^Status:/ {states++; installed=(NF==4 && $4=="installed")}
+          END {exit !(packages==1 && exact && states==1 && installed)}
+        '
+    fi
 }
 detect_manager() {
     PM=
@@ -582,7 +594,9 @@ if [ "$UNIVERSAL" = 1 ]; then
       {sub(/\r$/,"",$0)} NF==7 && $3=="openwrt-family" && $4=="any" && $5=="any" &&
       $7==ext && (($7=="ipk" && $6=="all") || ($7=="apk" && $6=="noarch")) {print $1 " " $2 " " $6;n++}
       END{if(n!=1)exit 1}' "$TMP/releases.tsv") || fail '通用发行清单缺少唯一的 IPK/APK 安装包。'
-    for base_package in base-files luci-base rpcd; do package_installed "$base_package" || fail '本机原生软件包清单不完整；请先确认 LuCI 和软件包管理器工作正常。'; done
+    for base_package in base-files luci-base rpcd; do
+        package_installed "$base_package" || fail "本机原生软件包清单不完整：未确认 $base_package 已完整安装（$PM）。请检查该包的安装状态或包管理器错误。"
+    done
     if package_installed luci-app-adzero; then UPGRADE=1; fi
     # An upgrade preserves the previous switch; a fresh installation adds
     # the UI without taking over a working router's DNS automatically.

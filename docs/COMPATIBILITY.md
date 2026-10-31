@@ -1,6 +1,6 @@
 # 固件兼容
 
-OpenWrt、ImmortalWrt、iStoreOS 共用同一个正式版本 v0.23.2 和[统一安装入口](INSTALLATION.md)。不需要选择品牌专用版、ARM64 版或 Beta。
+OpenWrt、ImmortalWrt、iStoreOS 共用同一个正式版本和[统一安装入口](INSTALLATION.md)。不需要选择品牌专用版、ARM64 版或 Beta。
 
 | 固件 | 推荐基础 | 依赖来源 |
 | --- | --- | --- |

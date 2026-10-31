@@ -23,6 +23,8 @@
 <p>三个固件使用同一份脚本插件，本机包管理器自动选择 IPK 或 APK。兼容性提示通常需要核对原生依赖、软件源与系统包冲突；不再要求用户另选品牌或 ARM64 专用版本。先用菜单预检，保留错误原文并查看<a href="compatibility.html">兼容说明</a>。</p>
 <p>请使用<a href="installation.html#install">统一安装命令</a>。<code>sh /tmp/adzero-install-auto.sh --detect</code> 只读取本机固件信息；<code>--check</code> 才会下载安装包并检查依赖。不需要改写固件 ID、强装其他 target 或追加其他固件的软件源。</p>
 <h2 id="istoreos-24108-opkg">iStoreOS 24.10.8 提示 OPKG/IPK 或版本不匹配</h2>
+<p>OPKG 系统若提示「本机原生软件包清单不完整」，先重新下载<a href="installation.html#install">统一安装助手</a>。v0.23.4 修复了把 <code>user</code>、<code>hold</code> 等正常安装标记误判为缺包的问题。旧版菜单或已保存的脚本仍可能使用旧判定，无需为绕过提示改写软件包数据库。</p>
+<p>新版仍提示时，会指出未确认的具体包。执行 <code>opkg status base-files luci-base rpcd</code>，只反馈各包的 Package、Version 和 Status 行。仅解包、残留配置或原生查询失败仍会停止；通过清单检查后，还需继续通过本机依赖检查，不能混用其他固件或修订号的库。</p>
 <p>让统一安装器按本机实际包管理器选择格式，不要手动把 APK 装到 OPKG 系统。iStoreOS 24.10.8（revision 2026073111）的已知原厂缺失依赖可自动补齐；其他构建先检查自己的源能否满足依赖，不能套用其他修订号的原生库。详见<a href="compatibility.html#istoreos-24108">依赖补充范围</a>。</p>
 <p>先从菜单选择预检。若计划要求替换已有系统包、依赖仍不满足或旧设置恢复失败，安装会停止；请保留具体错误提交反馈。</p>
 <h2 id="apk-db">iStoreOS 25.12.6 提示「目标需要 APK，当前包管理器或数据库不匹配」</h2>
