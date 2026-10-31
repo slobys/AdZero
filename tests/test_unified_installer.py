@@ -34,7 +34,7 @@ if '--simulate' in a or '--noaction' in a:
  if os.environ.get('UNSAFE_PLAN')=='1':print('Upgrading libc (1-r1 -> 2-r1)');sys.exit(0)
  app=next(pathlib.Path(x) for x in a if x.endswith(('.apk','.ipk')))
  if os.environ.get('MISSING_DEP')=='1' and ('--no-network' in sys.argv or '--lists-dir' in sys.argv) and not list((app.parent/'deps').glob('*')):print('missing conntrack');sys.exit(1)
- print('(1/2) Installing luci-app-adzero (0.23.4-r1)' if manager=='apk' else 'Installing luci-app-adzero (0.23.4-r1) to root...')
+ print('(1/2) Installing luci-app-adzero (0.23.5-r1)' if manager=='apk' else 'Installing luci-app-adzero (0.23.5-r1) to root...')
  if os.environ.get('MISSING_DEP')=='1':print('(2/2) Installing conntrack (1-r1)')
  sys.exit(0)
 if 'add' in a or 'install' in a:

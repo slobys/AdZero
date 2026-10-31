@@ -210,9 +210,11 @@ def main():
             assert value['queries']==3 and value['blocked']==2 and value['reset_token']==reset['token'],value
             # Reproduce a proxy's bridge-port DNAT with a real remote client.
             # Everything below remains in private network/mount namespaces.
+            observer=procs[-1]
             client=subprocess.Popen(['unshare','--net',sys.executable,'-u','-c','import time; print("ready",flush=True); time.sleep(120)'],stdout=subprocess.PIPE)
             procs.append(client)
             assert client.stdout.readline().strip()==b'ready'
+            client.stdout.close()
             def ip(*args):subprocess.run(['ip',*args],check=True,capture_output=True)
             def client_run(*args,input=None):
                 return subprocess.run(['nsenter','-t',str(client.pid),'-n',*args],input=input,capture_output=True,text=True,check=True,timeout=8)
@@ -231,7 +233,7 @@ def main():
             applied=subprocess.run(['chroot',temp,'/usr/sbin/nft','-f','-'],input=nft,capture_output=True,text=True)
             assert applied.returncode==0,applied.stderr
             # Stop only the isolated observer; the dnsmasq fixtures stay up.
-            observer=procs[-2];observer.terminate();observer.wait(timeout=4)
+            observer.terminate();observer.wait(timeout=4)
             (base/'bin/ubus').write_text('#!/bin/sh\necho \'{"l3_device":"br-observe"}\'\n')
             bridge_dns=subprocess.Popen(['chroot',temp,'/usr/sbin/dnsmasq','--no-daemon','--conf-file=/dev/null','--no-resolv','--no-hosts','--bind-interfaces','--listen-address=192.168.3.1','--port=11553','--user=root','--server=/doubleclick.net/','--host-record=www.baidu.com,1.2.3.4'],stdout=log,stderr=log)
             procs.append(bridge_dns)
@@ -244,7 +246,13 @@ raw=base64.b64decode(sys.argv[1]);tcp=sys.argv[2]=='tcp';target=sys.argv[3]
 s=socket.socket(socket.AF_INET,socket.SOCK_STREAM if tcp else socket.SOCK_DGRAM);s.settimeout(2)
 if target=='198.51.100.1':s.sendto(raw,(target,53));sys.exit(0)
 if tcp:
- s.connect((target,53));s.sendall(struct.pack('!H',len(raw))+raw);r=s.recv(4096)[2:]
+ s.connect((target,53));s.sendall(struct.pack('!H',len(raw))+raw)
+ def exact(n):
+  data=b''
+  while len(data)<n:
+   part=s.recv(n-len(data));assert part;data+=part
+  return data
+ r=exact(struct.unpack('!H',exact(2))[0])
 else:s.sendto(raw,(target,53));r=s.recv(4096)
 assert len(r)>=12 and r[:2]==raw[:2];print(struct.unpack('!H',r[2:4])[0]&15)
 '''
