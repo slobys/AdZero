@@ -28,7 +28,7 @@ class UnifiedEntrypoint(unittest.TestCase):
         curl.write_text('''#!/usr/bin/env python3
 import os,pathlib,sys
 a=sys.argv[1:]
-assert 'https://github.com/slobys/AdZero/releases/download/v0.23.3/install.sh' in a
+assert 'https://github.com/slobys/AdZero/releases/download/v0.23.4/install.sh' in a
 pathlib.Path(os.environ['AUTO_FETCH']).write_text('fetched')
 pathlib.Path(a[a.index('-o')+1]).write_bytes(pathlib.Path(os.environ['AUTO_CHILD']).read_bytes())
 '''); curl.chmod(0o755)

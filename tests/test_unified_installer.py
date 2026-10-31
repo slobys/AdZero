@@ -7,7 +7,7 @@ import unittest
 import test_installer
 
 MANAGER = r'''#!/usr/bin/env python3
-import os,pathlib,sys
+import json,os,pathlib,sys
 a=sys.argv[1:];manager=pathlib.Path(sys.argv[0]).name
 def log(s):
  with open(os.environ['MOCK_INSTALL_LOG'],'a') as f:f.write(s+'\n')
@@ -16,7 +16,12 @@ for opt in ['--root','--arch','--offline-root','--lists-dir','--cache']:
 if 'info' in a or 'status' in a:
  name=a[-1]
  if name not in ['base-files','luci-base','rpcd','ucode'] and not (name=='luci-app-adzero' and os.environ.get('EXISTING_APP')=='1'):sys.exit(1)
- print(name if manager=='apk' else 'Package: '+name+'\nStatus: install ok installed');sys.exit(0)
+ if manager=='apk':print(name);sys.exit(0)
+ state=json.loads(os.environ.get('OPKG_STATES','{}')).get(name,'install '+os.environ.get('OPKG_FLAG','ok')+' installed')
+ if state is None:sys.exit(1)
+ reply='Package: '+os.environ.get('OPKG_REPLY_NAME',name)+'\nStatus: '+state
+ if os.environ.get('OPKG_DUPLICATE')=='1':reply+='\n\n'+reply
+ print(reply);sys.exit(int(os.environ.get('OPKG_QUERY_EXIT','0')))
 if 'update' in a:log('refresh');sys.exit(int(os.environ.get('BROKEN_FEED','0')))
 if 'fetch' in a or '--download-only' in a:
  log('fetch-before-disable')
@@ -29,7 +34,7 @@ if '--simulate' in a or '--noaction' in a:
  if os.environ.get('UNSAFE_PLAN')=='1':print('Upgrading libc (1-r1 -> 2-r1)');sys.exit(0)
  app=next(pathlib.Path(x) for x in a if x.endswith(('.apk','.ipk')))
  if os.environ.get('MISSING_DEP')=='1' and ('--no-network' in sys.argv or '--lists-dir' in sys.argv) and not list((app.parent/'deps').glob('*')):print('missing conntrack');sys.exit(1)
- print('(1/2) Installing luci-app-adzero (0.23.3-r1)' if manager=='apk' else 'Installing luci-app-adzero (0.23.3-r1) to root...')
+ print('(1/2) Installing luci-app-adzero (0.23.4-r1)' if manager=='apk' else 'Installing luci-app-adzero (0.23.4-r1) to root...')
  if os.environ.get('MISSING_DEP')=='1':print('(2/2) Installing conntrack (1-r1)')
  sys.exit(0)
 if 'add' in a or 'install' in a:
@@ -69,6 +74,37 @@ class PortableInstaller(unittest.TestCase):
     def test_new_patch_does_not_need_another_application_release(self):
         self.platform('ImmortalWrt',release='25.12.9')
         self.assertEqual(self.events(),['commit-apk'])
+
+    def test_native_opkg_installed_flags_are_not_a_firmware_allowlist(self):
+        for family in ('OpenWrt','ImmortalWrt','iStoreOS'):
+            for flag in ('ok','user','hold','user,hold'):
+                with self.subTest(family=family,flag=flag):
+                    self.platform(family,manager='opkg',release='24.10.7');self.f.log.unlink(missing_ok=True)
+                    self.f.env['OPKG_FLAG']=flag
+                    self.assertEqual(self.events('--check'),[])
+                    self.assertFalse((self.f.root/'etc/adzero-backups').exists())
+
+    def test_user_installed_packages_can_complete_fresh_ipk_install(self):
+        self.platform('iStoreOS',manager='opkg',release='24.10.7');self.f.env['OPKG_FLAG']='user'
+        self.assertEqual(self.events(),['commit-opkg'])
+
+    def test_incomplete_opkg_package_state_stops_before_install_or_disable(self):
+        for state in (None,'install ok unpacked','deinstall ok config-files','unknown ok not-installed','install ok half-configured'):
+            with self.subTest(state=state):
+                self.platform('iStoreOS',manager='opkg',release='24.10.7')
+                self.f.env.update(OPKG_STATES=__import__('json').dumps({'luci-base':state}),EXISTING_APP='1')
+                self.f.log.unlink(missing_ok=True)
+                result=self.f.run_installer('--upgrade',success=False)
+                self.assertIn('luci-base',result.stdout+result.stderr)
+                self.assertFalse(self.f.log.exists());self.assertFalse((self.f.root/'etc/adzero-backups').exists())
+
+    def test_failed_wrong_or_ambiguous_opkg_status_is_not_installed(self):
+        for options in ({'OPKG_QUERY_EXIT':'1'},{'OPKG_REPLY_NAME':'unrelated'},{'OPKG_DUPLICATE':'1'}):
+            with self.subTest(options=options):
+                self.platform('iStoreOS',manager='opkg',release='24.10.7')
+                for key in ('OPKG_QUERY_EXIT','OPKG_REPLY_NAME','OPKG_DUPLICATE'):self.f.env.pop(key,None)
+                self.f.env.update(options)
+                self.assertEqual(self.events('--check',success=False),[])
 
     def test_crlf_catalog_still_selects_same_application(self):
         self.platform();p=self.f.release/'releases.tsv';p.write_bytes(p.read_bytes().replace(b'\n',b'\r\n'))
