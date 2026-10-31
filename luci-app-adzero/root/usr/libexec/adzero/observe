@@ -12,6 +12,27 @@ case "${1:-status}" in
   device=$(ubus call network.interface.lan status | jsonfilter -e '@.l3_device')
   case "$device" in ''|*[!a-zA-Z0-9_.:-]*) exit 1 ;; esac
   [ -d "/sys/class/net/$device" ] || exit 1
+  capture_device=$device
+  capture_filter='port 53 and (udp or tcp)'
+  if [ -d "/sys/class/net/$device/brif" ]; then
+   # br_netfilter can DNAT DNS on a bridge port before the bridge capture
+   # point. Correlate original LAN ingress with replies at bridge egress.
+   # Restrict the any-device socket to this bridge and its own LAN ports.
+   indexes=; count=0
+   for path in "/sys/class/net/$device" "/sys/class/net/$device/brif/"*; do
+    [ -e "$path" ] || continue
+    name=${path##*/}
+    case "$name" in ''|*[!a-zA-Z0-9_.:-]*) exit 1 ;; esac
+    index=$(cat "/sys/class/net/$name/ifindex")
+    case "$index" in ''|0|*[!0-9]*) exit 1 ;; esac
+    count=$((count + 1)); [ "$count" -le 257 ] || exit 1
+    [ -z "$indexes" ] || indexes="$indexes or "
+    indexes="${indexes}ifindex $index"
+   done
+   [ -n "$indexes" ] || exit 1
+   capture_device=any
+   capture_filter="$capture_filter and ($indexes)"
+  fi
   run_dir=$(mktemp -d /tmp/adzero-capture.XXXXXX)
   capture_pid=; decoder_pid=
   cleanup() {
@@ -25,7 +46,7 @@ case "${1:-status}" in
   trap 'exit 0' HUP INT TERM
   mkfifo "$run_dir/packets"
   # No -w file on persistent storage; no promiscuous mode; no payload logging.
-  tcpdump -p -n -U -s 4096 -i "$device" -w - 'port 53 and (udp or tcp)' >"$run_dir/packets" 2>/dev/null &
+  tcpdump -p -n -U -s 4096 -i "$capture_device" -w - "$capture_filter" >"$run_dir/packets" 2>/dev/null &
   capture_pid=$!
   ucode -S /usr/libexec/adzero/observe.uc -- collect "$device" <"$run_dir/packets" &
   decoder_pid=$!

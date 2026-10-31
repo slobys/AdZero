@@ -30,7 +30,7 @@
   "evidence_levels": ["source_review", "offline_fixture", "sdk_build", "device_install", "client_filtering"],
   "policy": "Identify the actual package manager, package architecture, dependencies and DNS path. Never infer filtering from a plugin name, firmware release or CPU bitness.",
   "unified_install": {
-    "release": "v0.23.4",
+    "release": "v0.23.5",
     "channel": "stable",
     "firmwares": [
       "openwrt",

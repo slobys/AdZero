@@ -632,7 +632,10 @@ return view.extend({
 		if(o.connection&&o.connection.runtime_retry_exhausted)return el('p',{'class':'az-inline-warning'},_('自动同步多次未完成，已暂停重试。请检查代理后点击“重新加载”；仍可关闭保护或调整规则。'));
 		if(o.connection&&o.connection.runtime&&o.connection.runtime.reason==='dns_sigchld_blocked')return el('p',{'class':'az-inline-warning'},_('代理 DNS 进程的子进程回收信号被阻塞，TCP 查询可能异常。请使用修正版重新加载；广告规则已加载不代表网络链路正常。'));
 		if(o.connection&&o.connection.runtime&&o.connection.runtime.state==='missing')return el('p',{'class':'az-inline-warning'},_('代理 DNS 尚未加载当前屏蔽规则，后台将有限重试。也可点击“重新加载”；无需重新下载订阅。'));
-		if(c.matched_positive>0)return el('p',{'class':'az-inline-warning'},_('当前接入期间，有 ')+number(c.matched_positive)+_(' 条命中规则的查询仍返回了 IP 地址。请用“效果检测”核对实际过滤；DNS 查询量增加不等于拦截量增加。'));
+		if(c.matched_positive>0||c.matched_error>0)return el('div',{},[
+			c.matched_positive>0?el('p',{'class':'az-inline-warning'},_('当前接入期间，有 ')+number(c.matched_positive)+_(' 条命中规则的查询仍返回了 IP 地址。请用“效果检测”核对实际过滤；DNS 查询量增加不等于拦截量增加。')):null,
+			c.matched_error>0?el('p',{'class':'az-inline-warning'},_('有 ')+number(c.matched_error)+_(' 条命中规则的查询返回 DNS 失败（SERVFAIL），未计入已拦截。代理可能转换了拒绝应答，也可能存在解析故障；请核对当前代理日志。')):null
+		]);
 		var handoff=(this.currentStatus||{}).dns_handoff||{};
 		if(handoff.reason==='conntrack_missing')return el('p',{'class':'az-inline-warning'},_('缺少 conntrack，旧 DNS 会话暂不能自动切换；请补齐安装依赖。过滤与统计可继续工作。'));
 		if(o.connection&&o.connection.plugin==='passwall'){
@@ -675,7 +678,7 @@ return view.extend({
 		else if(self.updateError||d.ok===false)content.push(el('p',{'class':'az-inline-warning',role:'alert'},self.updateError||d.message||_('无法检查更新，请确认路由器能够访问 GitHub。')));
 		else if(d.ok){
 			content.push(el('p',{'class':'az-update-detail'},[
-				_('当前版本：'),el('strong',{translate:'no'},d.current||'v0.23.4'),
+				_('当前版本：'),el('strong',{translate:'no'},d.current||'v0.23.5'),
 				_('　官方最新：'),el('strong',{translate:'no'},d.latest||'—')]));
 			content.push(el('p',{role:'status'},!d.available?_('已是当前发布通道的最新版本。'):!d.compatible?d.message||_('有新版本，但没有与当前固件兼容的安装包，不能强制升级。'):_('发现适用于当前固件的新版本，已通过安装包与 SHA-256 预检。')));
 		}else content.push(el('p',{},_('点击检查更新，查找官方最新版本。')));
@@ -784,13 +787,13 @@ return view.extend({
 		}, el('span', { 'class': 'az-toggle-track', 'aria-hidden': 'true' }, el('span', { 'class': 'az-toggle-thumb' })));
 		var page=self.pageKey(),pages=[['overview',_('运行概览'),'shield',_('查看保护状态、实时统计与当前接入。')],['rules',_('过滤规则'),'book',_('按需选择订阅，改完统一应用。')],['controls',_('访问控制'),'check',_('查找误拦截，精确管理域名放行与拦截。')],['enhance',_('DNS 增强'),'settings',_('按需增强解析与过滤，保留原生网络路径。')]],currentPage=pages.filter(function(p){return p[0]===page;})[0];
 		var nodes = [el('a',{'class':'az-skip-link',href:'#az-page-title'},_('跳到页面内容')),el('div', { 'class': 'az-header' }, [
-			el('div', { 'class': 'az-brand' }, [ el('img', { 'class': 'az-brand-mark', src: L.resource('view/adzero/logo.png') + '?v=0.23.4', alt: '', width: 44, height: 44, draggable: 'false' }),
+			el('div', { 'class': 'az-brand' }, [ el('img', { 'class': 'az-brand-mark', src: L.resource('view/adzero/logo.png') + '?v=0.23.5', alt: '', width: 44, height: 44, draggable: 'false' }),
 				el('div', {}, [ el('h2', { translate: 'no' }, 'AdZero'), el('p', {}, _('广告过滤与 DNS')) ]),
 				el('button',{id:'az-version',type:'button','class':'az-version-button'+(self.updateData&&self.updateData.available&&self.updateData.compatible?' has-update':''),
 					'aria-expanded':self.updateOpen?'true':'false','aria-controls':'az-update-panel',
-					'aria-label':_('AdZero v0.23.4，检查在线更新'),disabled:self.updateBusy||self.busy?true:null,
+					'aria-label':_('AdZero v0.23.5，检查在线更新'),disabled:self.updateBusy||self.busy?true:null,
 					click:function(){return self.toggleUpdate();}},[
-					el('span',{translate:'no'},'v0.23.4'),
+					el('span',{translate:'no'},'v0.23.5'),
 					self.updateData&&self.updateData.available&&self.updateData.compatible?el('span',{'class':'az-update-dot','aria-label':_('有新版本')},''):null,
 					icon('refresh')]) ]),
 			el('nav', { 'class': 'az-help-links', 'aria-label': _('帮助与社区') }, helpLinks.map(function(link) {
@@ -1235,7 +1238,7 @@ return view.extend({
 		}
 		status = status || { state: 'loading' };
 		this.panelNode = el('div', { id: 'adzero-panel' }, this.renderPanel(status));
-		var root = el('div', { 'class': 'az-root' }, [ el('link', { rel: 'stylesheet', href: L.resource('view/adzero/overview.css') + '?v=0.23.4' }), this.panelNode ]);
+		var root = el('div', { 'class': 'az-root' }, [ el('link', { rel: 'stylesheet', href: L.resource('view/adzero/overview.css') + '?v=0.23.5' }), this.panelNode ]);
 		pagePolling(this,this.panelNode);
 		if(self.rulesOpen&&!self.sourcesData)self.initialPageRequest=self.loadSources();
 		if(self.enhanceOpen)self.initialPageRequest=self.loadEnhance();

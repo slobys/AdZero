@@ -3,8 +3,8 @@
 set -eu
 set -f
 umask 077
-INSTALL_URL=https://github.com/slobys/AdZero/releases/download/v0.23.4/install.sh
-INSTALL_SHA256=9f9ee5dff2d021bc79dbf14e4b3e7207c72c8ca200239193c5d87c20a88df82c
+INSTALL_URL=https://github.com/slobys/AdZero/releases/download/v0.23.5/install.sh
+INSTALL_SHA256=0cffaac9ba31795efeda8f2671731850b36356cd21f18953207772d4f5033975
 fail() { printf 'AdZero: %s\n' "$*" >&2; exit 1; }
 if [ "${1:-}" = --detect ]; then
     [ "$#" = 1 ] || fail '--detect 不接受其他选项。'
