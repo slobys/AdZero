@@ -10,6 +10,8 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+VERSION = re.search(r'^PKG_VERSION:=(.+)$', (ROOT/'luci-app-adzero/Makefile').read_text(), re.M).group(1).strip()
+INSTALL_URL = f'https://github.com/slobys/AdZero/releases/download/v{VERSION}/install.sh'
 
 
 class UnifiedEntrypoint(unittest.TestCase):
@@ -28,18 +30,19 @@ class UnifiedEntrypoint(unittest.TestCase):
         curl.write_text('''#!/usr/bin/env python3
 import os,pathlib,sys
 a=sys.argv[1:]
-assert 'https://github.com/slobys/AdZero/releases/download/v0.23.4/install.sh' in a
+assert os.environ['AUTO_INSTALL_URL'] in a
 pathlib.Path(os.environ['AUTO_FETCH']).write_text('fetched')
 pathlib.Path(a[a.index('-o')+1]).write_bytes(pathlib.Path(os.environ['AUTO_CHILD']).read_bytes())
 '''); curl.chmod(0o755)
         self.result, self.fetched = self.base/'result', self.base/'fetch'
-        self.env = {**os.environ, 'PATH': str(self.bin)+':'+os.environ['PATH'], 'AUTO_CHILD':str(self.child), 'AUTO_RESULT':str(self.result), 'AUTO_FETCH':str(self.fetched), 'ADZERO_AUTO_TEST_ROOT':str(self.root), 'ADZERO_AUTO_TEST_MODE':'1'}
+        self.env = {**os.environ, 'PATH': str(self.bin)+':'+os.environ['PATH'], 'AUTO_CHILD':str(self.child), 'AUTO_RESULT':str(self.result), 'AUTO_FETCH':str(self.fetched), 'AUTO_INSTALL_URL':INSTALL_URL, 'ADZERO_AUTO_TEST_ROOT':str(self.root), 'ADZERO_AUTO_TEST_MODE':'1'}
 
     def run_entry(self, *args):
         return subprocess.run(shlex.split(os.environ.get('ADZERO_TEST_SHELL','sh'))+[str(self.script),*args], env=self.env, text=True, input='', capture_output=True, timeout=10)
 
     def test_pinned_digest_matches_the_only_current_installer(self):
         source=(ROOT/'scripts/install-auto.sh').read_text()
+        self.assertIn('INSTALL_URL='+INSTALL_URL+'\n',source)
         self.assertIn('INSTALL_SHA256='+hashlib.sha256((ROOT/'scripts/install.sh').read_bytes()).hexdigest(),source)
         self.assertNotIn('-beta',source)
         self.assertNotIn('PIN_ISTOREOS',source)
