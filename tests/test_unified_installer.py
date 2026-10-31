@@ -88,6 +88,13 @@ class PortableInstaller(unittest.TestCase):
         self.platform('iStoreOS',manager='opkg',release='24.10.7');self.f.env['OPKG_FLAG']='user'
         self.assertEqual(self.events(),['commit-opkg'])
 
+    def test_user_installed_app_upgrade_preserves_the_protection_switch(self):
+        self.platform('iStoreOS',manager='opkg',release='24.10.7');f=self.f
+        f.env.update(OPKG_FLAG='user',EXISTING_APP='1')
+        f.write('etc/adzero/managed','1');f.executable(f.bin/'uci','#!/bin/sh\necho 1\n')
+        f.executable(f.root/'usr/libexec/adzero/ctl','#!/bin/sh\necho "ctl $1" >> "$MOCK_INSTALL_LOG"\n[ "$1" != disable ] || rm "$ADZERO_INSTALL_ROOT/etc/adzero/managed"\n')
+        self.assertEqual(self.events(),['ctl disable','commit-opkg','ctl enable'])
+
     def test_incomplete_opkg_package_state_stops_before_install_or_disable(self):
         for state in (None,'install ok unpacked','deinstall ok config-files','unknown ok not-installed','install ok half-configured'):
             with self.subTest(state=state):
