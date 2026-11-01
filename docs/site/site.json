@@ -1,8 +1,8 @@
 {
   "title": "AdZero",
   "url": "https://slobys.github.io/AdZero/",
-  "version": "0.23.5",
-  "release": "v0.23.5",
+  "version": "0.23.6",
+  "release": "v0.23.6",
   "groups": [
     {"title": "开始使用", "pages": [
       {"id":"index","title":"使用文档","description":"从确认固件、安装到日常广告过滤。"},

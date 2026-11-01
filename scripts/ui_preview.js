@@ -130,5 +130,5 @@ Promise.all([fetch('/luci-static/resources/view/adzero/overview.js').then(r => r
     {id:'preview_hosts',name:'StevenBlack - Unified hosts',url:'https://cdn.jsdelivr.net/gh/StevenBlack/hosts/hosts',format:'hosts',enabled:false,https:true}
   ]);
   app = Function('view', 'fs', 'dom', '_', 'E', 'document', 'L', 'rpc', 'poll', source)({ extend: x => x }, api,
-    window.previewDom || { content: (el, content) => el.replaceChildren(content) }, x => x, window.E || fallbackE, document, { resource: x => '/luci-static/resources/' + x }, rpc, poll); initialMount(700);
+    window.previewDom || { content: (el, content) => el.replaceChildren(...(content == null ? [] : Array.isArray(content) ? content : [content])) }, x => x, window.E || fallbackE, document, { resource: x => '/luci-static/resources/' + x }, rpc, poll); initialMount(700);
 });

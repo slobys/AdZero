@@ -345,6 +345,7 @@ return view.extend({
 			])]);
 	},
 	busy: null, currentStatus: null, lastChecked: null, notice: null, domainInput: '', domainResult: null, pauseSeconds: 300,
+	pauseButtonText:function(){return _('暂停 ')+this.pauseSeconds/60+_(' 分钟');},
 	observation:null, observationBusy:false, verificationCommands:'', verificationNotice:null, networkOpen:false,
 	draft: null, applyingDraft: null,
 	controlsOpen:false,controlDraft:null,controlSearch:'',controlFilter:'all',controlInput:'',controlKind:'blocked',recentSearch:'',statsBusy:false,statsIntent:null,statsNotice:null,
@@ -513,7 +514,7 @@ return view.extend({
 		]);
 	},
 	renderStatsActions:function(){var self=this;return el('div',{'class':'az-stat-actions'},[
-		el('span',{'class':'az-live-caption'},_('统计每秒自动刷新 · 后台页面暂停刷新')),
+		el('span',{id:'az-stats-caption','class':'az-live-caption'},_('累计统计 · 每秒刷新 · 后台页面暂停刷新')),
 		el('button',{id:'az-stats-reset',type:'button','class':'az-button az-button-quiet',disabled:self.statsBusy||self.statsIntent||self.busy||!(self.observation||{}).available?true:null,click:function(){return self.resetStats();}},self.statsBusy||self.statsIntent?_('正在清零…'):_('清零统计'))]);},
 	resetStats:function(){var self=this;if(self.statsBusy||self.statsIntent||self.busy||!(self.observation||{}).available)return Promise.resolve();self.statsBusy=true;self.statsNotice=null;self.updateStatsActions();
 		return observationCalls.reset().then(function(r){if(!r||!r.ok||!/^[a-f0-9]{32}$/.test(r.token||''))throw Error(r&&r.message||_('未收到清零回执。'));self.statsIntent={token:r.token,at:Date.now()};return self.refreshObservation();}).catch(function(e){self.statsNotice=String(e.message||e);}).then(function(){self.statsBusy=false;self.updateStatsActions();});},
@@ -678,7 +679,7 @@ return view.extend({
 		else if(self.updateError||d.ok===false)content.push(el('p',{'class':'az-inline-warning',role:'alert'},self.updateError||d.message||_('无法检查更新，请确认路由器能够访问 GitHub。')));
 		else if(d.ok){
 			content.push(el('p',{'class':'az-update-detail'},[
-				_('当前版本：'),el('strong',{translate:'no'},d.current||'v0.23.5'),
+				_('当前版本：'),el('strong',{translate:'no'},d.current||'v0.23.6'),
 				_('　官方最新：'),el('strong',{translate:'no'},d.latest||'—')]));
 			content.push(el('p',{role:'status'},!d.available?_('已是当前发布通道的最新版本。'):!d.compatible?d.message||_('有新版本，但没有与当前固件兼容的安装包，不能强制升级。'):_('发现适用于当前固件的新版本，已通过安装包与 SHA-256 预检。')));
 		}else content.push(el('p',{},_('点击检查更新，查找官方最新版本。')));
@@ -787,13 +788,13 @@ return view.extend({
 		}, el('span', { 'class': 'az-toggle-track', 'aria-hidden': 'true' }, el('span', { 'class': 'az-toggle-thumb' })));
 		var page=self.pageKey(),pages=[['overview',_('运行概览'),'shield',_('查看保护状态、实时统计与当前接入。')],['rules',_('过滤规则'),'book',_('按需选择订阅，改完统一应用。')],['controls',_('访问控制'),'check',_('查找误拦截，精确管理域名放行与拦截。')],['enhance',_('DNS 增强'),'settings',_('按需增强解析与过滤，保留原生网络路径。')]],currentPage=pages.filter(function(p){return p[0]===page;})[0];
 		var nodes = [el('a',{'class':'az-skip-link',href:'#az-page-title'},_('跳到页面内容')),el('div', { 'class': 'az-header' }, [
-			el('div', { 'class': 'az-brand' }, [ el('img', { 'class': 'az-brand-mark', src: L.resource('view/adzero/logo.png') + '?v=0.23.5', alt: '', width: 44, height: 44, draggable: 'false' }),
+			el('div', { 'class': 'az-brand' }, [ el('img', { 'class': 'az-brand-mark', src: L.resource('view/adzero/logo.png') + '?v=0.23.6', alt: '', width: 44, height: 44, draggable: 'false' }),
 				el('div', {}, [ el('h2', { translate: 'no' }, 'AdZero'), el('p', {}, _('广告过滤与 DNS')) ]),
 				el('button',{id:'az-version',type:'button','class':'az-version-button'+(self.updateData&&self.updateData.available&&self.updateData.compatible?' has-update':''),
 					'aria-expanded':self.updateOpen?'true':'false','aria-controls':'az-update-panel',
-					'aria-label':_('AdZero v0.23.5，检查在线更新'),disabled:self.updateBusy||self.busy?true:null,
+					'aria-label':_('AdZero v0.23.6，检查在线更新'),disabled:self.updateBusy||self.busy?true:null,
 					click:function(){return self.toggleUpdate();}},[
-					el('span',{translate:'no'},'v0.23.5'),
+					el('span',{translate:'no'},'v0.23.6'),
 					self.updateData&&self.updateData.available&&self.updateData.compatible?el('span',{'class':'az-update-dot','aria-label':_('有新版本')},''):null,
 					icon('refresh')]) ]),
 			el('nav', { 'class': 'az-help-links', 'aria-label': _('帮助与社区') }, helpLinks.map(function(link) {
@@ -828,9 +829,13 @@ return view.extend({
 			el('div', { 'class': 'az-action-row' }, [ el('button', { id: 'az-resume', type: 'button', 'class': 'az-button az-button-primary', disabled: locked ? true : null, click: function() { return self.runPolicy('resume', []); } }, _('立即恢复')),
 				el('button', { type: 'button', 'class': 'az-button az-button-quiet', disabled: locked ? true : null, click: function() { return self.runAction('disable'); } }, _('保持关闭')) ])
 		] : [ el('span', {}, strictDNS?_('严格 DNS 已开启 · 临时暂停不可用；误拦截请到“访问控制”处理。'):_('网页或 App 异常？先暂停对比，或前往“访问控制”检查域名。')),
-			el('div', { 'class': 'az-action-row' }, [ el('label', { 'for': 'az-pause-duration', 'class': 'az-sr-only' }, _('暂停时长')),
-				el('select', { id: 'az-pause-duration', disabled: locked||strictDNS ? true : null, change: function(e) { self.pauseSeconds = Number(e.target.value); } }, [300,900,1800].map(function(seconds) { return el('option', { value: seconds, selected: self.pauseSeconds === seconds ? true : null }, seconds / 60 + _(' 分钟')); })),
-				el('button', { id: 'az-pause', type: 'button', 'class': 'az-button az-button-quiet', disabled: locked||strictDNS ? true : null, click: function() { return self.runPolicy('pause', [self.pauseSeconds]); } }, _('临时暂停')) ]) ]));
+			el('div', { 'class': 'az-action-row' }, [ el('label', { 'for': 'az-pause-duration', 'class': 'az-pause-label' }, _('暂停时长')),
+				el('select', { id: 'az-pause-duration', disabled: locked||strictDNS ? true : null, change: function(e) {
+					self.pauseSeconds = Number(e.target.value);
+					var button=document.getElementById('az-pause');
+					if(button)dom.content(button,[self.pauseButtonText()]);
+				} }, [300,900,1800].map(function(seconds) { return el('option', { value: seconds, selected: self.pauseSeconds === seconds ? true : null }, seconds / 60 + _(' 分钟')); })),
+				el('button', { id: 'az-pause', type: 'button', 'class': 'az-button az-button-quiet', disabled: locked||strictDNS ? true : null, click: function() { return self.runPolicy('pause', [self.pauseSeconds]); } }, self.pauseButtonText()) ]) ]));
 		nodes.push(el('div',{id:'az-live-metrics'},[self.renderMetrics(s)]));
 		nodes.push(el('div',{id:'az-stats-actions'},[self.renderStatsActions()]));
 		nodes.push(el('p',{id:'az-stats-notice','class':'az-live-caption',role:'status'},self.statsNotice||''));
@@ -1238,7 +1243,7 @@ return view.extend({
 		}
 		status = status || { state: 'loading' };
 		this.panelNode = el('div', { id: 'adzero-panel' }, this.renderPanel(status));
-		var root = el('div', { 'class': 'az-root' }, [ el('link', { rel: 'stylesheet', href: L.resource('view/adzero/overview.css') + '?v=0.23.5' }), this.panelNode ]);
+		var root = el('div', { 'class': 'az-root' }, [ el('link', { rel: 'stylesheet', href: L.resource('view/adzero/overview.css') + '?v=0.23.6' }), this.panelNode ]);
 		pagePolling(this,this.panelNode);
 		if(self.rulesOpen&&!self.sourcesData)self.initialPageRequest=self.loadSources();
 		if(self.enhanceOpen)self.initialPageRequest=self.loadEnhance();
