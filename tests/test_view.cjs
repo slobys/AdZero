@@ -112,7 +112,7 @@ function reset(overrides = {}) {
   app.controlsOpen=false;app.controlDraft=null;app.controlSearch='';app.controlFilter='all';app.controlInput='';app.controlKind='blocked';app.recentSearch='';app.statsBusy=false;app.statsIntent=null;app.statsNotice=null;app.statsPaintKey=null;app.rulesOpen=false;app.sourcesData=null;app.sourcesLoading=false;app.sourcesError=null;
   app.disclosures={};app.libraryFilter='all';
   jobSteps=[];statusSteps=[];app.currentJob=null;app.jobUncertain=false;app.jobProgress=null;
-  app.busy = app.notice = app.domainResult = null; app.domainInput = ''; root = app.render(state); active = body;
+  app.busy = app.notice = app.domainResult = null; app.domainInput = ''; app.pauseSeconds=300; root = app.render(state); active = body;
 }
 const find = id => doc.getElementById(id);
 function check(value, label) { assert.ok(value, label); assertions++; }
@@ -369,7 +369,21 @@ function check(value, label) { assert.ok(value, label); assertions++; }
   check(text(root).includes('移除'),'personal list has undo');
   await app.runPolicy('revoke',['ads.example','ads.example']);
   check(!state.policy.allowed.length && app.notice.kind === 'success','revoke status verified');
-  app.controlsOpen=false;app.paint();await app.runPolicy('pause',[900]);
+  for(const seconds of [300,900,1800]){
+    reset({state:'configured_unverified'});
+    const duration=find('az-pause-duration'),label=nodes(root,n=>n.tag==='label'&&n.attrs.for==='az-pause-duration')[0];
+    check(text(label)==='暂停时长'&&!label.attrs.class.includes('az-sr-only'),'pause duration has a visible label, separate from statistics');
+    check(text(find('az-stats-caption')).includes('累计统计'),'statistics are explicitly described as cumulative');
+    duration.events.change({target:{value:String(seconds)}});
+    check(text(find('az-pause'))==='暂停 '+seconds/60+' 分钟','pause button immediately reflects the selected duration');
+    check(!commands.length&&state.state==='configured_unverified','selecting a duration sends no RPC and leaves protection running');
+    await app.refreshStatus();await app.refreshObservation();app.paint();
+    check(nodes(find('az-pause-duration'),n=>n.tag==='option'&&Object.hasOwn(n.attrs,'selected'))[0].attrs.value===String(seconds),'duration survives status refresh and statistics polling');
+    check(text(find('az-pause'))==='暂停 '+seconds/60+' 分钟','repaint retains the selected duration in the action label');
+    await find('az-pause').events.click();
+    check(state.state==='paused'&&state.policy.pause.remaining===seconds,'pause button submits the chosen duration through the typed RPC');
+  }
+  reset({state:'configured_unverified'});await app.runPolicy('pause',[900]);
   check(state.state === 'paused' && text(root).includes('15 分钟后'),'pause deadline visible');
   check(!find('az-domain') && !find('az-update') && !find('az-resume').disabled,'paused controls guarded');
   check(find('az-toggle').attrs['data-action'] === 'resume','paused switch resumes');

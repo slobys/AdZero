@@ -285,6 +285,8 @@
 }
 .az-root .az-pause-bar, .az-root .az-action-row, .az-root .az-domain-form { display: flex; align-items: center; gap: 8px; }
 .az-root .az-pause-bar { justify-content: space-between; flex-wrap: wrap; color: var(--az-muted); font-size: 13px; padding: 8px 4px 0; }
+.az-root .az-pause-label { white-space: nowrap; }
+.az-root .az-pause-bar > .az-action-row { flex-wrap: wrap; }
 .az-root .az-action-row { flex-shrink: 0; }
 .az-root .az-domain-card { padding: 18px; margin-top: 12px; }
 .az-root .az-domain-form { margin-top: 12px; align-items: stretch; }
