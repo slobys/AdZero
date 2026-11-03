@@ -12,7 +12,7 @@ from prepare_dns_socket import prepare,install
 from build_sdk import source_hash
 from check_dns_core import question,recv_exact
 TIMEOUT='coreutils-timeout_9.7-r1_x86_64.ipk'
-TIMEOUT_SHA='8e529e06face73306c0cc66a7c002432643a7aa4697a4609bdf4ee297fbcbb3e'
+TIMEOUT_SHA='a011462f8462400ba6699066821f27ee6ddf6aea75c612087303c1f22de2796e'
 
 def response(raw):
     kind=struct.unpack('!H',raw[-4:-2])[0];ip=socket.inet_pton(socket.AF_INET6 if kind==28 else socket.AF_INET,'2001:db8::9' if kind==28 else '192.0.2.9')
