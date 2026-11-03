@@ -637,6 +637,12 @@ function check(value, label) { assert.ok(value, label); assertions++; }
   check(!find('az-toggle').disabled,'stopped NaiLink manager cannot lock PassWall enable control');
   reset({compatibility:{dns:{active_proxy_count:1,uncertain_proxies:['nailink']}}});
   check(text(root).includes('暂时无法确认 NaiLink 内核状态')&&find('az-toggle').disabled,'unknown core is explained rather than reported as multiple active proxies');
+  reset({compatibility:{plugins:[{id:'nailink',core_status_reason:'core_not_ready'}],dns:{active_proxy_count:0,uncertain_proxies:['nailink']}}});
+  check(text(root).includes('内核尚未就绪')&&find('az-toggle').disabled,'dataplane failure is not mislabeled as an ongoing core switch');
+  for(const [fields,message] of [[{core_phase:'switching'},'内核正在启动或切换'],[{core_status_reason:'api_denied'},'状态接口授权未通过'],[{core_status_reason:'api_unavailable'},'状态接口暂未响应'],[{core_status_reason:'core_process_mismatch'},'状态与实际内核进程不一致']]){
+    reset({compatibility:{plugins:[Object.assign({id:'nailink'},fields)],dns:{active_proxy_count:0,uncertain_proxies:['nailink']}}});
+    check(text(root).includes(message)&&find('az-toggle').disabled,'uncertain NaiLink explains its public reason while retaining the guard');
+  }
   check(nodes(root,n=>n.tag==='details'&&(n.attrs.class||'').includes('az-network-settings')&&!n.open).length===1,'DNS and routing are collapsed by default');
   check(text(root).includes('不代表网页广告个数')&&text(root).includes('加密 DNS'),'statistics explain their actual measurement scope');
   app.observation={available:true,active:true,current:{}};

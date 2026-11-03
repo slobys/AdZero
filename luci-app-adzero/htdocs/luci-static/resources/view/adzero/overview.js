@@ -201,7 +201,20 @@ function proxyBlocker(s) {
 	var inv=s.compatibility||{},dns=inv.dns||{},active=dns.active_proxies||[],uncertain=dns.uncertain_proxies||[];
 	if(s.adguardhome_running)return _('AdGuard Home 正在运行，请先关闭对应服务。');
 	if(dns.active_proxy_count>1)return _('检测到多个代理：')+(active.map(function(id){return names[id]||id;}).join('、')||_('请检查正在运行的插件'))+_('。请保留一个正在使用的代理后重新检测。');
-	if(uncertain.length)return _('暂时无法确认 ')+uncertain.map(function(id){return id==='nailink'?'NaiLink':names[id]||id;}).join('、')+_(' 内核状态，请检查对应插件后重新检测。');
+	if(uncertain.length){
+		var nailink=uncertain.length===1&&uncertain[0]==='nailink'&&(inv.plugins||[]).filter(function(p){return p.id==='nailink';})[0];
+		if(nailink&&['starting','switching','reloading','recovering'].indexOf(nailink.core_phase)>=0)
+			return _('NaiLink 内核正在启动或切换，AdZero 会自动重新检测。');
+		if(nailink&&nailink.core_status_reason==='api_denied')
+			return _('NaiLink 状态接口授权未通过，请检查 NaiLink 管理服务后重新检测。');
+		if(nailink&&nailink.core_status_reason==='api_unavailable')
+			return _('NaiLink 状态接口暂未响应，请稍后重新检测。');
+		if(nailink&&nailink.core_status_reason==='core_not_ready')
+			return _('NaiLink 内核尚未就绪，请检查 NaiLink 运行状态后重新检测。');
+		if(nailink&&nailink.core_status_reason==='core_process_mismatch')
+			return _('NaiLink 状态与实际内核进程不一致，请检查 NaiLink 后重新检测。');
+		return _('暂时无法确认 ')+uncertain.map(function(id){return id==='nailink'?'NaiLink':names[id]||id;}).join('、')+_(' 内核状态，请检查对应插件后重新检测。');
+	}
 	var unsupported=(inv.plugins||[]).filter(function(p){return p.installed&&p.adapter_supported===false&&(p.active===true||active.indexOf(p.id)>=0);})[0];
 	return unsupported?(_('已识别 ')+(names[unsupported.id]||unsupported.id)+_('，当前版本尚未支持安全接入。请保留该插件的原生 DNS 设置。')):null;
 }
@@ -679,7 +692,7 @@ return view.extend({
 		else if(self.updateError||d.ok===false)content.push(el('p',{'class':'az-inline-warning',role:'alert'},self.updateError||d.message||_('无法检查更新，请确认路由器能够访问 GitHub。')));
 		else if(d.ok){
 			content.push(el('p',{'class':'az-update-detail'},[
-				_('当前版本：'),el('strong',{translate:'no'},d.current||'v0.23.6'),
+				_('当前版本：'),el('strong',{translate:'no'},d.current||'v0.23.7'),
 				_('　官方最新：'),el('strong',{translate:'no'},d.latest||'—')]));
 			content.push(el('p',{role:'status'},!d.available?_('已是当前发布通道的最新版本。'):!d.compatible?d.message||_('有新版本，但没有与当前固件兼容的安装包，不能强制升级。'):_('发现适用于当前固件的新版本，已通过安装包与 SHA-256 预检。')));
 		}else content.push(el('p',{},_('点击检查更新，查找官方最新版本。')));
@@ -788,13 +801,13 @@ return view.extend({
 		}, el('span', { 'class': 'az-toggle-track', 'aria-hidden': 'true' }, el('span', { 'class': 'az-toggle-thumb' })));
 		var page=self.pageKey(),pages=[['overview',_('运行概览'),'shield',_('查看保护状态、实时统计与当前接入。')],['rules',_('过滤规则'),'book',_('按需选择订阅，改完统一应用。')],['controls',_('访问控制'),'check',_('查找误拦截，精确管理域名放行与拦截。')],['enhance',_('DNS 增强'),'settings',_('按需增强解析与过滤，保留原生网络路径。')]],currentPage=pages.filter(function(p){return p[0]===page;})[0];
 		var nodes = [el('a',{'class':'az-skip-link',href:'#az-page-title'},_('跳到页面内容')),el('div', { 'class': 'az-header' }, [
-			el('div', { 'class': 'az-brand' }, [ el('img', { 'class': 'az-brand-mark', src: L.resource('view/adzero/logo.png') + '?v=0.23.6', alt: '', width: 44, height: 44, draggable: 'false' }),
+			el('div', { 'class': 'az-brand' }, [ el('img', { 'class': 'az-brand-mark', src: L.resource('view/adzero/logo.png') + '?v=0.23.7', alt: '', width: 44, height: 44, draggable: 'false' }),
 				el('div', {}, [ el('h2', { translate: 'no' }, 'AdZero'), el('p', {}, _('广告过滤与 DNS')) ]),
 				el('button',{id:'az-version',type:'button','class':'az-version-button'+(self.updateData&&self.updateData.available&&self.updateData.compatible?' has-update':''),
 					'aria-expanded':self.updateOpen?'true':'false','aria-controls':'az-update-panel',
-					'aria-label':_('AdZero v0.23.6，检查在线更新'),disabled:self.updateBusy||self.busy?true:null,
+					'aria-label':_('AdZero v0.23.7，检查在线更新'),disabled:self.updateBusy||self.busy?true:null,
 					click:function(){return self.toggleUpdate();}},[
-					el('span',{translate:'no'},'v0.23.6'),
+					el('span',{translate:'no'},'v0.23.7'),
 					self.updateData&&self.updateData.available&&self.updateData.compatible?el('span',{'class':'az-update-dot','aria-label':_('有新版本')},''):null,
 					icon('refresh')]) ]),
 			el('nav', { 'class': 'az-help-links', 'aria-label': _('帮助与社区') }, helpLinks.map(function(link) {
@@ -1243,7 +1256,7 @@ return view.extend({
 		}
 		status = status || { state: 'loading' };
 		this.panelNode = el('div', { id: 'adzero-panel' }, this.renderPanel(status));
-		var root = el('div', { 'class': 'az-root' }, [ el('link', { rel: 'stylesheet', href: L.resource('view/adzero/overview.css') + '?v=0.23.6' }), this.panelNode ]);
+		var root = el('div', { 'class': 'az-root' }, [ el('link', { rel: 'stylesheet', href: L.resource('view/adzero/overview.css') + '?v=0.23.7' }), this.panelNode ]);
 		pagePolling(this,this.panelNode);
 		if(self.rulesOpen&&!self.sourcesData)self.initialPageRequest=self.loadSources();
 		if(self.enhanceOpen)self.initialPageRequest=self.loadEnhance();

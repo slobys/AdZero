@@ -27,21 +27,38 @@ def main():
         os.mknod(base/'dev/urandom',0o666|0o20000,os.makedev(1,9))
         (base/'var/run/ubus/ubus.sock').symlink_to('/tmp/ubus.sock')
         shutil.copyfile(ROOT/'luci-app-adzero/root/usr/libexec/adzero/proxy-state.uc',base/'usr/libexec/adzero/proxy-state.uc')
-        (base/'usr/libexec/adzero/probe-test.uc').write_text("import * as p from './proxy-state.uc'; print(sprintf('%J\\n',{running:p.nailink('')}));\n")
+        shutil.copyfile(ROOT/'luci-app-adzero/root/usr/libexec/adzero/probe.uc',base/'usr/libexec/adzero/probe.uc')
+        (base/'usr/libexec/adzero/probe-test.uc').write_text("import * as p from './proxy-state.uc'; let s=p.nailink_state(''); print(sprintf('%J\\n',{running:s.running,phase:s.phase??null}));\n")
         gateway=base/'usr/libexec/daed/luci-proxy'
         gateway.write_text('''#!/bin/sh
 set -eu
-[ "$REQUEST_METHOD" = POST ] && [ "$PATH_INFO" = /graphql ]
 [ "$HTTP_ORIGIN" = http://localhost ]
 session=${HTTP_COOKIE#daed_luci_session=}
 umask 077
 printf '%s' "$session" > /tmp/last-session
 access=$(ubus call session access "{\\"ubus_rpc_session\\":\\"$session\\",\\"scope\\":\\"access-group\\",\\"object\\":\\"luci-app-daed-router\\",\\"function\\":\\"write\\"}" | jsonfilter -e '@.access')
 [ "$access" = true ]
+if [ "$REQUEST_METHOD" = GET ] && [ "$PATH_INFO" = /health/ready ]; then
+ printf 'health\\n' >> /tmp/requests
+ case "$(cat /tmp/scenario)" in
+  health_ready|health_slow) printf 'Status: 200 OK\\r\\n\\r\\n{"core":"mihomo","phase":"ready","ready":true,"configured":true,"listening":true,"initialized":true,"dns_ready":true,"routing_ready":true}';;
+  health_incomplete) printf 'Status: 200 OK\\r\\n\\r\\n{"core":"mihomo","phase":"ready","ready":true}';;
+  health_pending) printf 'Status: 503 Unavailable\\r\\n\\r\\n{"core":"mihomo","phase":"restoring","ready":false}';;
+  health_restore_failed) printf 'Status: 503 Unavailable\\r\\n\\r\\n{"core":"mihomo","phase":"dns_route_restore_failed","ready":false}';;
+  health_inactive) printf 'Status: 200 OK\\r\\n\\r\\n{"core":"mihomo","phase":"inactive","ready":true,"configured":false}';;
+  *) printf 'Status: 503 Unavailable\\r\\n\\r\\n{}';;
+ esac
+ exit 0
+fi
+[ "$REQUEST_METHOD" = POST ] && [ "$PATH_INFO" = /graphql ]
 body=$(cat)
 if [ "$body" = '{"query":"{coreStatus}"}' ]; then
  case "$(cat /tmp/scenario)" in
   native) printf 'Status: 200 OK\\r\\n\\r\\n{"data":{"coreStatus":"{\\"current\\":\\"sing-box\\",\\"runtime\\":\\"ready\\",\\"running\\":true}"}}';;
+  native_slow) sleep 2; printf 'Status: 200 OK\\r\\n\\r\\n{"data":{"coreStatus":"{\\"current\\":\\"sing-box\\",\\"runtime\\":\\"ready\\",\\"running\\":true}"}}';;
+  native_object) printf 'Status: 200 OK\\r\\n\\r\\n{"data":{"coreStatus":{"current":"sing-box","runtime":"ready","running":true}}}';;
+  health_ready|health_incomplete|health_pending|health_restore_failed|health_inactive) printf 'Status: 502 Unavailable\\r\\n\\r\\nPRIVATE-RESPONSE';;
+  health_slow) exec sleep 8;;
   switching) printf 'Status: 200 OK\\r\\n\\r\\n{"data":{"coreStatus":"{\\"current\\":\\"mihomo\\",\\"runtime\\":\\"switching\\",\\"running\\":true}"}}';;
   legacy422) printf 'Status: 422 Unprocessable Entity\\r\\n\\r\\n{"errors":[{"message":"Cannot query field coreStatus on type Query"}]}';;
   core_denied) printf 'Status: 403 Forbidden\\r\\n\\r\\nPRIVATE-RESPONSE';;
@@ -69,18 +86,49 @@ esac
                 procs.append(subprocess.Popen(['chroot',tmp,*command],env=child,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL))
                 time.sleep(.2)
             rows=[]
-            for scenario,expected in [('true',True),('false',False),('native',True),('switching',None),('legacy422',True),('core_denied',None),('denied',None),('errors',None),('invalid',None),('broken',None),('slow',None)]:
+            for scenario,expected in [('true',True),('false',False),('native',True),('native_slow',True),('native_object',True),('health_ready',True),('health_slow',True),('health_incomplete',None),('health_pending',None),('health_restore_failed',None),('health_inactive',False),('switching',None),('legacy422',True),('core_denied',None),('denied',None),('errors',None),('invalid',None),('broken',None),('slow',None)]:
                 (base/'tmp/scenario').write_text(scenario)
+                (base/'tmp/requests').write_text('')
                 started=time.monotonic();result=run('/usr/bin/ucode','/usr/libexec/adzero/probe-test.uc');elapsed=time.monotonic()-started
                 assert result.returncode==0,result.stderr
-                assert json.loads(result.stdout)=={'running':expected},(scenario,result.stdout,result.stderr)
+                state=json.loads(result.stdout)
+                assert state['running'] is expected,(scenario,result.stdout,result.stderr)
+                if scenario=='health_restore_failed':assert state['phase']=='unknown', 'DNS recovery failure is not a core transition'
+                if scenario=='health_pending':assert state['phase']=='recovering'
+                if scenario=='health_inactive':assert state['phase']=='stopped'
                 assert 'PRIVATE' not in result.stdout+result.stderr
                 assert not list((base/'tmp').glob('adzero-proxy-*'))
                 sid=(base/'tmp/last-session').read_text()
                 access=run('/bin/ubus','call','session','access',json.dumps({'ubus_rpc_session':sid,'scope':'access-group','object':'luci-app-daed-router','function':'write'}))
                 assert access.returncode!=0 or json.loads(access.stdout).get('access') is False
-                assert elapsed<2.5,(scenario,elapsed)
+                assert elapsed<7.2,(scenario,elapsed)
+                if scenario in ('core_denied','denied','errors','switching'):
+                    assert not (base/'tmp/requests').read_text(), 'Explicit denial/transition must not be overridden by readiness'
                 rows.append({'scenario':scenario,'running':expected,'seconds':round(elapsed,3),'session_destroyed':True,'temporary_files_removed':True})
+            # A healthy HTTP endpoint alone cannot claim an external worker.
+            # Exercise readiness recovery through the complete inventory too.
+            (base/'etc/config/daed').write_text("config main 'main'\n option enabled '1'\n")
+            manager=base/'proc/4567'
+            manager.mkdir(parents=True)
+            (manager/'comm').write_text('daed\n')
+            worker=base/'proc/4568'
+            worker.mkdir()
+            (base/'tmp/scenario').write_text('health_ready')
+            for core,expected in [('mihomo',True),('sing-box',False),(None,False)]:
+                if core:
+                    (worker/'cmdline').write_bytes(('/usr/bin/'+core+'\0-c\0/var/run/daed/cores/active-fixture/config.json\0').encode())
+                else:
+                    (worker/'cmdline').unlink()
+                result=run('/usr/bin/ucode','-S','/usr/libexec/adzero/probe.uc')
+                assert result.returncode==0,result.stderr
+                data=json.loads(result.stdout)
+                nailink=next(p for p in data['plugins'] if p['id']=='nailink')
+                assert nailink['active'] is expected,(core,nailink)
+                assert nailink['runtime_evidence']=='health_api'
+                assert data['dns']['uncertain_proxies']==([] if expected else ['nailink'])
+                assert 'PRIVATE' not in result.stdout+result.stderr
+                assert not list((base/'tmp').glob('adzero-proxy-*'))
+                rows.append({'scenario':'health_inventory_'+str(core),'running':expected,'owned_worker_required':True})
             output={'runtime':'real OpenWrt ucode/ubus/rpcd; controlled CGI responses','checks':len(rows),'cases':rows,'device_acceptance':'not_run'}
             (ROOT/'artifacts/runtime/proxy-result.json').write_text(json.dumps(output,indent=2)+'\n')
             print(json.dumps(output,indent=2))
