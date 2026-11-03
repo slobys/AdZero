@@ -93,14 +93,14 @@ for (let row in rows) {
 	let installed = !!(fs.stat(root + '/etc/config/' + service) || fs.stat(root + '/etc/init.d/' + service));
 	let runtime = 'unknown', hint = 'unknown', enabled = null, manager_runtime = null, core_checked = null, core=null, identity=null, phase=null, core_reason=null, core_source='core_api';
 	if (id == 'nailink') {
-		installed ||= !!fs.stat(root + '/usr/share/daed-router/version') || !!processes.daed || owned_cores.nailink?.running===true;
+		let worker=owned_cores.nailink, has_worker=worker?.running===true||length(worker?.identity??'')>0;
+		installed ||= !!fs.stat(root + '/usr/share/daed-router/version') || !!processes.daed || has_worker;
 		manager_runtime = processes.daed ? 'running' : service_state(service);
-		if (installed && (manager_runtime == 'running'||owned_cores.nailink?.running===true)) {
+		if (installed && (manager_runtime == 'running'||has_worker)) {
 			let state = proxy.nailink_state(root), running=state.running;
 			core=state.core;phase=state.phase??null;core_reason=state.reason??null;core_source=state.evidence??'core_api';
-			let worker=owned_cores.nailink;
 			if ((running===true&&core!='dae'&&(worker?.running!==true||worker.core!=core)) ||
-				(worker?.running===true&&(running===false||(core!=null&&(core=='dae'||worker.core!=core))))) {
+				(has_worker&&(worker.running!==true||running===false||(core!=null&&(core=='dae'||worker.core!=core))))) {
 				running=null;core_reason='core_process_mismatch';
 			}
 			identity=owned_cores.nailink?.identity??null;
