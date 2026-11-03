@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "checked_at_utc": "2026-10-30",
+  "checked_at_utc": "2026-11-03",
   "scope": "CI-only isolated OpenWrt 24.10.8 x86_64 native runtime fixtures; no production AdZero packages, router or SDK release changed",
   "firmware": "OpenWrt 24.10.8 x86_64",
   "immutable_release_archive": "https://archive.openwrt.org/releases/24.10.8/packages/x86_64/",
-  "historical_pin_note": "The original coreutils-timeout SHA in docs/evidence/v0.21.4/official-timeout-package-index.json is preserved as historical proof for the former rolling feed. The official immutable archive now has a different byte-exact IPK with the same package version; CI pins the archive byte SHA and verifies the archive Packages.gz index rather than accepting unverified rolling bytes.",
+  "historical_pin_note": "Release-specific archive URLs can be repacked with unchanged package version. CI pins exact bytes. The timeout package was rechecked against the official Packages.gz index on 2026-11-03; only control SourceDateEpoch changed and its executable payload is byte-identical. The remaining six pinned packages were downloaded and retain their original SHA-256 values.",
   "packages": [
     {
       "feed": "base",
@@ -14,7 +14,7 @@
     {
       "feed": "packages",
       "name": "coreutils-timeout_9.7-r1_x86_64.ipk",
-      "sha256": "8e529e06face73306c0cc66a7c002432643a7aa4697a4609bdf4ee297fbcbb3e",
+      "sha256": "a011462f8462400ba6699066821f27ee6ddf6aea75c612087303c1f22de2796e",
       "official_archive_packages_gz_index_matched": true,
       "package_control_version": "9.7-r1"
     },
@@ -50,5 +50,13 @@
   ],
   "openclash_official_archive_recursive_packages": 15,
   "openclash_unneeded_ruby_json": false,
-  "physical_device_acceptance": "not_run"
+  "physical_device_acceptance": "not_run",
+  "timeout_metadata_repack": {
+    "previous_package_sha256": "8e529e06face73306c0cc66a7c002432643a7aa4697a4609bdf4ee297fbcbb3e",
+    "current_package_sha256": "a011462f8462400ba6699066821f27ee6ddf6aea75c612087303c1f22de2796e",
+    "official_index_sha256_matched": true,
+    "control_change": "SourceDateEpoch:1792564006 ->1793440229",
+    "payload_sha256": "35a450ce0c155cf4be026ff84a0c9f30dc95c938d1231cff64721941ac4d36be",
+    "payload_unchanged": true
+  }
 }

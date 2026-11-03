@@ -297,6 +297,45 @@ class ProbeTest(unittest.TestCase):
         self.assertEqual(result['dns']['active_proxies'],[])
         self.assertEqual(result['dns']['uncertain_proxies'],['passwall'])
 
+    def test_stopped_nailink_native_core_does_not_block_another_proxy(self):
+        self.data.update(running=['daed'],uci={'daed.main.enabled':'1','passwall.@global[0].enabled':'1'})
+        self.write('proc/800/cmdline','/usr/bin/xray\0run\0-c\0/tmp/etc/passwall/acl/default/client.json\0')
+        for core in ('sing-box','mihomo'):
+            with self.subTest(core=core):
+                Path(self.env['ADZERO_PROBE_NAILINK_FIXTURE']).write_text(json.dumps({'current':core,'runtime':'stopped','running':False}))
+                result=self.probe()
+                nailink=next(p for p in result['plugins'] if p['id']=='nailink')
+                self.assertEqual(nailink['runtime'],'stopped')
+                self.assertTrue(nailink['core_checked'])
+                self.assertFalse(nailink['active'])
+                self.assertEqual(result['dns']['active_proxies'],['passwall'])
+                self.assertEqual(result['dns']['uncertain_proxies'],[])
+
+    def test_stopped_nailink_api_cannot_hide_an_owned_worker(self):
+        self.data.update(running=['daed'],uci={'daed.main.enabled':'1'})
+        for core in ('sing-box','mihomo'):
+            with self.subTest(core=core):
+                Path(self.env['ADZERO_PROBE_NAILINK_FIXTURE']).write_text(json.dumps({'current':core,'runtime':'stopped','running':False}))
+                self.write('proc/800/cmdline','/usr/bin/'+core+'\0-c\0/var/run/daed/cores/active-123/config.json\0')
+                result=self.probe()
+                self.assertEqual(result['dns']['active_proxies'],[])
+                self.assertEqual(result['dns']['uncertain_proxies'],['nailink'])
+
+    def test_stopped_api_or_manager_cannot_hide_two_owned_nailink_cores(self):
+        self.data['uci']={'daed.main.enabled':'1'}
+        Path(self.env['ADZERO_PROBE_NAILINK_FIXTURE']).write_text(json.dumps({'current':'mihomo','runtime':'stopped','running':False}))
+        self.write('proc/800/cmdline','/usr/bin/mihomo\0-f\0/var/run/daed/cores/active-123/config.json\0')
+        self.write('proc/801/cmdline','/usr/bin/sing-box\0run\0-c\0/var/run/daed/cores/active-456/config.json\0')
+        for manager in (True,False):
+            with self.subTest(manager_running=manager):
+                self.data['running']=['daed'] if manager else []
+                result=self.probe()
+                self.assertEqual(result['dns']['active_proxies'],[])
+                self.assertEqual(result['dns']['uncertain_proxies'],['nailink'])
+                nailink=next(p for p in result['plugins'] if p['id']=='nailink')
+                self.assertEqual(nailink['runtime'],'unknown')
+                self.assertEqual(nailink['core_status_reason'],'core_process_mismatch')
+
     def test_nailink_native_cores_are_not_mistaken_for_other_plugins(self):
         self.data.update(running=['daed'],services={'openclash':True},uci={'daed.main.enabled':'1','passwall2.@global[0].enabled':'1','openclash.config.enable':'1'})
         for core,args in [('sing-box','run\0-D\0/var/run/daed/cores/active-123\0-c\0/var/run/daed/cores/active-123/config.json\0'),('mihomo','-d\0/var/run/daed/cores/active-123\0-f\0/var/run/daed/cores/active-123/config.json\0')]:
@@ -374,7 +413,7 @@ class ProbeTest(unittest.TestCase):
         self.assertEqual(result['dns']['uncertain_proxies'],[])
 
     def test_release_metadata_is_not_executed_and_json_is_escaped(self):
-        payload = 'iStoreOS "测试" \\ $(touch SHOULD_NOT_EXIST)\t'
+        payload = 'iStoreOS "娴嬭瘯" \\ $(touch SHOULD_NOT_EXIST)\t'
         self.write("etc/openwrt_release", "DISTRIB_ID='" + payload + "'\nDISTRIB_RELEASE='25.12.5'\n")
         self.assertEqual(self.probe()["platform"]["distribution"], payload)
         self.assertFalse((ROOT / "SHOULD_NOT_EXIST").exists())

@@ -16,7 +16,7 @@ def main():
  archive=ROOT/'artifacts/runtime/openwrt-24.10.8-x86-64-rootfs.tar.gz'
  helper=ROOT/'artifacts/upstream/PassWall/helper_dnsmasq.lua';api=ROOT/'artifacts/upstream/PassWall/api.lua'
  helper2=ROOT/'artifacts/upstream/Passwall2/helper_dnsmasq.lua'
- deps={'lua_5.1.5-r11_x86_64.ipk':'164795e16b225d71e776a5aa584f6b3af239a0012724da63de58dd808f6a3165','liblua5.1.5_5.1.5-r11_x86_64.ipk':'53875655f43c24dc00fe3f94a1a9e15294be48b80ee32d9fd5d6cddc65b01a70','coreutils-timeout_9.7-r1_x86_64.ipk':'8e529e06face73306c0cc66a7c002432643a7aa4697a4609bdf4ee297fbcbb3e'}
+ deps={'lua_5.1.5-r11_x86_64.ipk':'164795e16b225d71e776a5aa584f6b3af239a0012724da63de58dd808f6a3165','liblua5.1.5_5.1.5-r11_x86_64.ipk':'53875655f43c24dc00fe3f94a1a9e15294be48b80ee32d9fd5d6cddc65b01a70','coreutils-timeout_9.7-r1_x86_64.ipk':'a011462f8462400ba6699066821f27ee6ddf6aea75c612087303c1f22de2796e'}
  if '--inside' not in sys.argv:
   if os.geteuid()!=0:raise SystemExit('Run in Linux/WSL as root')
   prepare_socket(ROOT,None)

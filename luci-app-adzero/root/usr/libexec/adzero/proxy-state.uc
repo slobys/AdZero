@@ -185,11 +185,11 @@ export function nailink_state(root) {
 		try { let data = json(fs.readfile(fixture)); return nailink_status(data.current?data:null,data); }
 		catch(e) { return {running:null,core:null}; }
 	}
-	let bus, session, input, output, created = [], result = {running:null,core:null};
+	let bus, session, input, output, created = [], result = {running:null,core:null,reason:'api_unavailable'};
 	try {
 		bus = connect();
 		if (!bus) return result;
-		session = bus.call('session','create',{timeout:10})?.ubus_rpc_session;
+		session = bus.call('session','create',{timeout:20})?.ubus_rpc_session;
 		if (!match(session ?? '', /^[a-f0-9]{32}$/)) die('session unavailable');
 		bus.call('session','grant',{ubus_rpc_session:session,scope:'access-group',objects:[['luci-app-daed-router','write']]});
 		if (bus.call('session','access',{ubus_rpc_session:session,scope:'access-group',object:'luci-app-daed-router',function:'write'})?.access !== true) die('access unavailable');
@@ -204,29 +204,64 @@ export function nailink_state(root) {
 			let written = file.write(data), closed = file.close();
 			if (written != length(data) || !closed) die('short write');
 		}
-		for(let query in ['{coreStatus}','{general{dae{running}}}']){
-		payload='{"query":"'+query+'"}';
-		if(fs.writefile(input,payload)!=length(payload))die('short write');
-		let argv = ['env','REQUEST_METHOD=POST','REQUEST_URI=/cgi-bin/daed-router/graphql',
-			'SCRIPT_NAME=/cgi-bin/daed-router','PATH_INFO=/graphql','SERVER_PROTOCOL=HTTP/1.1',
+		function request(query,timeout) {
+		let path=query?'/graphql':'/health/ready';
+		payload=query?'{"query":"'+query+'"}':'';
+		if(fs.writefile(input,payload)!=length(payload))return {reason:'api_unavailable'};
+		let argv = ['env','REQUEST_METHOD='+(query?'POST':'GET'),'REQUEST_URI=/cgi-bin/daed-router'+path,
+			'SCRIPT_NAME=/cgi-bin/daed-router','PATH_INFO='+path,'SERVER_PROTOCOL=HTTP/1.1',
 			'HTTP_HOST=localhost','HTTP_ORIGIN=http://localhost','HTTP_COOKIE=daed_luci_session='+session,
 			'CONTENT_TYPE=application/json','CONTENT_LENGTH='+length(payload),(root ?? '')+'/usr/libexec/daed/luci-proxy'];
-		let rc = system(join(' ',map(argv,quote))+' < '+quote(input)+' > '+quote(output)+' 2>/dev/null',1500);
+		let rc = system(join(' ',map(argv,quote))+' < '+quote(input)+' > '+quote(output)+' 2>/dev/null',timeout);
 		let file = fs.open(output,'r'), raw = file ? file.read(65537) : null;
 		if (file) file.close();
-		if (rc != 0 || length(raw ?? '') > 65536) die('probe unavailable');
+		if (rc != 0) return {reason:'api_unavailable'};
+		if (length(raw ?? '') > 65536) return {reason:'invalid_response'};
 		raw = replace(raw ?? '',/\r\n/g,'\n');
 		let split_at = index(raw,'\n\n');
-		if (split_at < 0) die('invalid response');
+		if (split_at < 0) return {reason:'invalid_response'};
 		let status = match(substr(raw,0,split_at),/(^|\n)Status: ([0-9]{3})/);
-		if (status && status[2] != '200' && !(query=='{coreStatus}'&&index(['400','422'],status[2])>=0)) die('request rejected');
-		let data = json(substr(raw,split_at+2));
-		if(query=='{coreStatus}'&&length(data?.errors??[])&&!length(filter(data.errors,e=>type(e?.message)=='string'&&match(e.message,/([Cc]annot query field|[Uu]nknown field).*coreStatus/))))die('core state unavailable');
-		if(status&&status[2]!='200'&&!length(data?.errors??[]))die('request rejected');
-		if(!length(data?.errors??[])&&query=='{coreStatus}'&&type(data?.data?.coreStatus)=='string'){
-			result=nailink_status(data.data.coreStatus);break;
+		let code=status?+status[2]:200;
+		if(index([401,403],code)>=0)return {reason:'api_denied'};
+		let data;
+		try{data=json(substr(raw,split_at+2));}catch(e){return {reason:code>=500?'api_unavailable':'invalid_response'};}
+		if(query=='{coreStatus}'&&length(data?.errors??[])&&
+			length(filter(data.errors,e=>type(e?.message)=='string'&&match(e.message,/([Cc]annot query field|[Uu]nknown field).*coreStatus/)))==length(data.errors)&&index([200,400,422],code)>=0)return {unsupported:true};
+		if(length(data?.errors??[]))return {reason:'api_rejected'};
+		if(code!=200&&!(query==null&&code==503&&data?.ready===false))return {reason:'api_unavailable'};
+		return query?{data:data?.data}:{health:data};
 		}
-		if(query!='{coreStatus}')result=nailink_status(null,data?.data?.general?.dae);
+		// The CGI itself allows three seconds for local authorization. A 1.5s
+		// caller deadline incorrectly rejects valid replies on slower routers.
+		// Three fixed attempts remain bounded to at most 6.5s of CGI runtime.
+		let response=request('{coreStatus}',3500), fallback=false;
+		if(response.reason) {
+			result.reason=response.reason;
+			fallback=index(['api_denied','api_rejected'],response.reason)<0;
+		} else if(response.data?.coreStatus!=null) {
+			result=nailink_status(response.data.coreStatus);
+			fallback=result.core==null;
+		} else {
+			let legacy=request('{general{dae{running}}}',1500);
+			result=legacy.reason?{running:null,core:null,reason:legacy.reason}:nailink_status(null,legacy.data?.general?.dae);
+			fallback=type(result.running)!='bool'&&index(['api_denied','api_rejected'],result.reason)<0;
+		}
+		if(fallback) {
+			// Same authenticated CGI, not an unauthenticated port or process-name
+			// guess. Never override an explicit denial or core transition.
+			let health=request(null,1500), value=health.health;
+			if(health.reason=='api_denied')result={running:null,core:null,reason:'api_denied'};
+			else if(index(['dae','sing-box','mihomo'],value?.core)>=0) {
+				if(value.ready===true&&value.phase=='ready'&&value.configured===true&&value.listening===true&&
+					value.initialized===true&&value.dns_ready===true&&value.routing_ready===true)
+					result={running:true,core:value.core,phase:'ready',evidence:'health_api'};
+				else if(value.ready===true&&value.phase=='inactive'&&value.configured===false)
+					result={running:false,core:value.core,phase:'stopped',evidence:'health_api'};
+				else if(value.ready===false) {
+					let pending=index(['starting','switching','reloading','recovering','restoring','dataplane_starting','dns_starting'],value.phase)>=0;
+					result={running:null,core:value.core,phase:pending?'recovering':'unknown',reason:pending?'core_transition':'core_not_ready',evidence:'health_api'};
+				}
+			}
 		}
 	} catch(e) { /* Unknown is distinct from stopped. Never emit private responses. */ }
 	for (let path in created) fs.unlink(path);

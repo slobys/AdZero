@@ -91,15 +91,18 @@ let proxy_count = 0, active_proxy_count = 0, uncertain_proxies = [], active_prox
 for (let row in rows) {
 	let id = row[0], service = row[1], name = row[2], flag = row[3], hint_section = row[4], hint_option = row[5];
 	let installed = !!(fs.stat(root + '/etc/config/' + service) || fs.stat(root + '/etc/init.d/' + service));
-	let runtime = 'unknown', hint = 'unknown', enabled = null, manager_runtime = null, core_checked = null, core=null, identity=null, phase=null;
+	let runtime = 'unknown', hint = 'unknown', enabled = null, manager_runtime = null, core_checked = null, core=null, identity=null, phase=null, core_reason=null, core_source='core_api';
 	if (id == 'nailink') {
-		installed ||= !!fs.stat(root + '/usr/share/daed-router/version') || !!processes.daed || owned_cores.nailink?.running===true;
+		let worker=owned_cores.nailink, has_worker=worker?.running===true||length(worker?.identity??'')>0;
+		installed ||= !!fs.stat(root + '/usr/share/daed-router/version') || !!processes.daed || has_worker;
 		manager_runtime = processes.daed ? 'running' : service_state(service);
-		if (installed && (manager_runtime == 'running'||owned_cores.nailink?.running===true)) {
+		if (installed && (manager_runtime == 'running'||has_worker)) {
 			let state = proxy.nailink_state(root), running=state.running;
-			core=state.core;phase=state.phase??null;
-			if(core!='dae'&&(owned_cores.nailink?.running!==true||owned_cores.nailink?.core!=core))running=null;
-			if(core=='dae'&&owned_cores.nailink?.running===true)running=null;
+			core=state.core;phase=state.phase??null;core_reason=state.reason??null;core_source=state.evidence??'core_api';
+			if ((running===true&&core!='dae'&&(worker?.running!==true||worker.core!=core)) ||
+				(has_worker&&(worker.running!==true||running===false||(core!=null&&(core=='dae'||worker.core!=core))))) {
+				running=null;core_reason='core_process_mismatch';
+			}
 			identity=owned_cores.nailink?.identity??null;
 			core_checked = type(running) == 'bool';
 			runtime = core_checked ? (running ? 'running' : 'stopped') : 'unknown';
@@ -136,9 +139,10 @@ for (let row in rows) {
 	}
 	if (installed) proxy_count++;
 	let plugin = {id, installed, enabled, runtime, dns_hint:hint, integration:'unverified'};
-	plugin.runtime_evidence=id=='nailink'?'core_api':evidence;
+	plugin.runtime_evidence=id=='nailink'?core_source:evidence;
 	plugin.core=core;
 	if(phase)plugin.core_phase=phase;
+	if(core_reason)plugin.core_status_reason=core_reason;
 	if(identity)plugin.runtime_identity=identity;
 	plugin.adapter_supported=index(['nailink','passwall','passwall2','openclash','nikki','ssrplus'],id)>=0;
 	plugin.routing_supported=index(['nailink','passwall','openclash','nikki'],id)>=0;
