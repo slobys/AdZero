@@ -97,7 +97,7 @@ export function nailink_health(state,value) {
 		return {running:null,core:value.core,phase:pending?'recovering':'unknown',reason:pending?'core_transition':'core_not_ready',evidence:'health_api'};
 	}
 	return state;
-}
+};
 
 // Structural evidence from PassWall's running default DNS, never an init exit
 // code. Cache decoded fragments by inode/stat: the observer calls this each
