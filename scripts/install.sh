@@ -3,7 +3,7 @@
 set -eu
 set -f
 umask 077
-BASE_URL=${ADZERO_BASE_URL:-https://github.com/slobys/AdZero/releases/download/v0.23.7}
+BASE_URL=${ADZERO_BASE_URL:-https://github.com/slobys/AdZero/releases/download/v0.23.8}
 LOCAL_DIR=
 ENABLE=1
 ENABLE_EXPLICIT=0
@@ -500,10 +500,10 @@ resume_watchers() {
 cleanup() {
 	resume_watchers
 	[ "$INSTALL_LOCK_OWNED" != 1 ] || rmdir "$INSTALL_LOCK" 2>/dev/null || :
-	rm -rf "$TMP/deps" "$TMP/supplement" "$TMP/empty-lists"
+	rm -rf "$TMP/deps" "$TMP/supplement" "$TMP/empty-lists" "$TMP/recovery"
 	rm -f "$TMP/dependencies.tsv" "$TMP/dependencies.tar.gz" "$TMP/dependency-paths" "$TMP/fetch-packages" "$TMP/repository.log"
 	rm -f "$TMP/seen-adblock-fast" "$TMP/seen-conntrack" "$TMP/seen-coreutils-timeout" "$TMP/seen-libnetfilter-cthelper0" "$TMP/seen-libnetfilter-cttimeout1" "$TMP/seen-libnetfilter-queue1" "$TMP/seen-ucode-mod-socket"
-	rm -f "$TMP/releases.tsv" "$TMP/package.$EXT" "$TMP/disable.log" "$TMP/watchers" "$TMP/preflight.log"
+	rm -f "$TMP/releases.tsv" "$TMP/package.$EXT" "$TMP/disable.log" "$TMP/watchers" "$TMP/preflight.log" "$TMP/recovery-data.tar.gz"
 	rmdir "$TMP" 2>/dev/null || :
 }
 trap 'cleanup' 0
@@ -700,9 +700,36 @@ if [ "$UPGRADE" = 1 ]; then
 	# Keep config and recovery state together before asking the OLD controller
 	# to restore its changes. Never replace a controller that still owns them.
 	if [ -x "$CTL" ]; then
+		RECOVERY_ADAPTER=
+		close_request="$ROOT/etc/adzero/close-requested"
+		recovery_journal="$ROOT/etc/adzero/adapter.json"
+		if [ -f "$close_request" ] && [ ! -L "$close_request" ] &&
+		   [ "$(cat "$close_request")" = 'AdZero close request v1' ]; then
+			# Finish the saved close without re-enabling protection after install.
+			ENABLE=0
+			if [ "$UNIVERSAL" = 1 ] &&
+			   [ "$(cat "$ROOT/usr/share/adzero/version" 2>/dev/null)" = 0.23.7 ] &&
+			   [ -f "$recovery_journal" ] && [ ! -L "$recovery_journal" ] &&
+			   [ "$(jsonfilter -i "$recovery_journal" -e '@.plugin' 2>/dev/null)" = nailink ]; then
+				# Use only the package already verified by SHA-256 and the native
+				# dependency solver. Extract privately without running install hooks.
+				mkdir "$TMP/recovery"
+				if [ "$PM" = apk ]; then
+					apk_native extract --no-network --allow-untrusted --no-chown --destination "$TMP/recovery" "$TMP/package.apk" ||
+						fail '无法提取新版恢复程序，已停止升级。'
+				else
+					tar -xOzf "$TMP/package.ipk" ./data.tar.gz > "$TMP/recovery-data.tar.gz" &&
+						tar -xzf "$TMP/recovery-data.tar.gz" -C "$TMP/recovery" ./usr/libexec/adzero ||
+						fail '无法提取新版恢复程序，已停止升级。'
+				fi
+				RECOVERY_ADAPTER="$TMP/recovery/usr/libexec/adzero/adapter"
+				[ -x "$RECOVERY_ADAPTER" ] && [ -f "$RECOVERY_ADAPTER.uc" ] ||
+					fail '新版恢复程序不完整，已停止升级。'
+			fi
+		fi
 		# Recent controllers understand zero wait. Older ones fail immediately.
 		# Retry only known pre-mutation busy responses, never restore failures.
-		while ! ADZERO_LOCK_WAIT_SECONDS=0 "$CTL" disable > "$TMP/disable.log" 2>&1; do
+		while ! ADZERO_ADAPTER="$RECOVERY_ADAPTER" ADZERO_LOCK_WAIT_SECONDS=0 "$CTL" disable > "$TMP/disable.log" 2>&1; do
 			case "$(cat "$TMP/disable.log")" in
 				'AdZero: 另一项操作正在进行；若异常断电可检查临时锁。'|'AdZero: 等待操作锁超时；可能仍有操作或遗留锁。请检查进程后重试，勿直接删除锁。') ;;
 				*) cat "$TMP/disable.log" >&2; fail '旧版未能完成关闭与恢复，已停止升级；恢复记录保留。' ;;
