@@ -174,6 +174,31 @@ export function dae_routing(raw,target,settings) {
 	let defaults=owned('ROUTING',direct+'\ndomain(ext:"adzero-cn-geosite.dat:adzero") -> direct\ndip(ext:"adzero-cn-geoip.dat:adzero") -> direct');
 	return prefix+substr(raw,0,at)+'\n'+defaults+substr(raw,at);
 };
+export function dae_routing_references(raw) {
+	return type(raw) != 'string' || match(raw, /ADZERO (SPLIT |ALIAS BRIDGE )|adzero-[a-z0-9_-]+[.]dat/) != null;
+};
+export function restore_copied_dae_routing(current, recorded) {
+	if (type(current) != 'string' || dae_routing_references(recorded.before)) return null;
+	let blocks = [
+		/(^|\n)(# ADZERO SPLIT TRANSPORT BEGIN v1\n[^#]*# ADZERO SPLIT TRANSPORT END v1\n)/,
+		/(^|\n)(# ADZERO SPLIT ROUTING BEGIN v1\n[^#]*# ADZERO SPLIT ROUTING END v1\n)/
+	];
+	for (let snapshot in [recorded.after, recorded.previous_after]) {
+		if (type(snapshot) != 'string') continue;
+		let remaining = '\n' + current;
+		for (let pattern in blocks) {
+			let block = match(snapshot, pattern)?.[2];
+			let parts = block ? split(remaining, '\n' + block) : [];
+			if (length(parts) != 2) {
+				remaining = null;
+				break;
+			}
+			remaining = parts[0] + '\n' + parts[1];
+		}
+		if (!dae_routing_references(remaining)) return substr(remaining, 1);
+	}
+	return null;
+};
 export function mihomo(config,domain_path,ip_path,settings) {
 	let addresses=selected(settings),domestic=addresses.domestic,foreign=addresses.foreign;
 	if(config.dns?.enable!=true)die('代理 DNS 未开启。');

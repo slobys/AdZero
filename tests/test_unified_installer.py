@@ -23,6 +23,12 @@ if 'info' in a or 'status' in a:
  if os.environ.get('OPKG_DUPLICATE')=='1':reply+='\n\n'+reply
  print(reply);sys.exit(int(os.environ.get('OPKG_QUERY_EXIT','0')))
 if 'update' in a:log('refresh');sys.exit(int(os.environ.get('BROKEN_FEED','0')))
+if 'extract' in a:
+ import tarfile
+ assert '--no-network' in a and '--no-chown' in a
+ with tarfile.open(a[-1]) as package:
+  package.extractall(a[a.index('--destination')+1],filter='data')
+ log('extract-recovery');sys.exit(0)
 if 'fetch' in a or '--download-only' in a:
  log('fetch-before-disable')
  if os.environ.get('DOWNLOAD_FAIL')=='1':sys.exit(1)
@@ -94,6 +100,49 @@ class PortableInstaller(unittest.TestCase):
         f.write('etc/adzero/managed','1');f.executable(f.bin/'uci','#!/bin/sh\necho 1\n')
         f.executable(f.root/'usr/libexec/adzero/ctl','#!/bin/sh\necho "ctl $1" >> "$MOCK_INSTALL_LOG"\n[ "$1" != disable ] || rm "$ADZERO_INSTALL_ROOT/etc/adzero/managed"\n')
         self.assertEqual(self.events(),['ctl disable','commit-opkg','ctl enable'])
+
+    def test_upgrade_uses_verified_recovery_for_saved_nailink_close(self):
+        def pack(entries):
+            result=io.BytesIO()
+            with tarfile.open(fileobj=result,mode='w:gz') as archive:
+                for name,data in entries.items():
+                    member=tarfile.TarInfo(name);member.size=len(data);member.mode=0o755
+                    archive.addfile(member,io.BytesIO(data))
+            return result.getvalue()
+
+        for manager in ('opkg','apk'):
+            for conflict in (False,True):
+                with self.subTest(manager=manager,conflict=conflict):
+                    self.platform(manager=manager);f=self.f
+                    f.log.unlink(missing_ok=True)
+                    f.env.update(EXISTING_APP='1',RECOVERY_CONFLICT='1' if conflict else '0')
+                    f.write('usr/share/adzero/version','0.23.7\n')
+                    f.write('etc/adzero/close-requested','AdZero close request v1\n')
+                    f.write('etc/adzero/managed','1')
+                    f.write('etc/adzero/adapter.json','{"plugin":"nailink"}\n')
+                    f.executable(f.bin/'uci','#!/bin/sh\necho 1\n')
+                    f.executable(f.bin/'jsonfilter','#!/bin/sh\necho nailink\n')
+                    f.executable(f.root/'usr/libexec/adzero/ctl','''#!/bin/sh
+echo "ctl $1" >> "$MOCK_INSTALL_LOG"
+[ "$1" = disable ] && [ -x "$ADZERO_ADAPTER" ] && [ -f "$ADZERO_ADAPTER.uc" ] || exit 1
+"$ADZERO_ADAPTER" remove || exit 1
+rm "$ADZERO_INSTALL_ROOT/etc/adzero/adapter.json" "$ADZERO_INSTALL_ROOT/etc/adzero/close-requested" "$ADZERO_INSTALL_ROOT/etc/adzero/managed"
+''')
+                    payload=pack({
+                        './usr/libexec/adzero/adapter':b'#!/bin/sh\necho recover >> "$MOCK_INSTALL_LOG"\n[ "$RECOVERY_CONFLICT" = 0 ]\n',
+                        './usr/libexec/adzero/adapter.uc':b'// candidate adapter\n',
+                    })
+                    ext='ipk' if manager=='opkg' else 'apk'
+                    name='adzero-test.'+ext
+                    raw=pack({'./data.tar.gz':payload}) if manager=='opkg' else payload
+                    (f.release/name).write_bytes(raw)
+                    (f.release/'releases.tsv').write_text(
+                        f'{hashlib.sha256(raw).hexdigest()}\t{name}\topenwrt-family\tany\tany\t'
+                        +('all' if ext=='ipk' else 'noarch')+'\t'+ext+'\n')
+                    expected=(['extract-recovery'] if manager=='apk' else [])+['ctl disable','recover']
+                    if not conflict:expected+=['commit-'+manager]
+                    self.assertEqual(self.events('--upgrade',success=not conflict),expected)
+                    self.assertEqual((f.root/'etc/adzero/adapter.json').exists(),conflict)
 
     def test_incomplete_opkg_package_state_stops_before_install_or_disable(self):
         for state in (None,'install ok unpacked','deinstall ok config-files','unknown ok not-installed','install ok half-configured'):
