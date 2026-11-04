@@ -304,6 +304,8 @@ function nailink_runtime_state(with_modified){
 	let current=graphql('{coreStatus}').coreStatus;
 	let legacy=graphql(with_modified?'{general{dae{running modified}}}':'{general{dae{running}}}').general?.dae;
 	let state=proxy.nailink_status(current,legacy);
+	if(state.check_health)state=proxy.nailink_health(state,graphql('',null,true));
+	delete state.check_health;
 	return {...legacy,...state,legacy_running:legacy?.running};
 }
 function active_plugin() {

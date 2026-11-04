@@ -68,14 +68,36 @@ export function core_states(root) {
 export function nailink_status(value,legacy) {
 	if(type(value)=='string')try{value=json(value);if(type(value)!='object')return {running:null,core:null};}catch(e){return {running:null,core:null};}
 	if(type(value)=='object'&&index(['dae','sing-box','mihomo'],value.current)>=0){
-		let ready=value.runtime=='ready'&&value.running===true&&(value.api_only==null||value.api_only===false);
-		let stopped=value.runtime=='stopped'||value.runtime=='idle';
+		// NaiLink embeds persisted routercore.State: running is omitempty and
+		// can be absent or stale after startup/reload. Even runtime=ready may
+		// describe an inactive manager; confirm the live dataplane below.
+		let stable=value.phase==null||index(['stable','rolled_back'],value.phase)>=0;
+		let ready=stable&&value.runtime=='ready'&&(value.running==null||value.running===true)&&
+			(value.api_only==null||value.api_only===false);
+		let stopped=stable&&(value.runtime=='stopped'||value.runtime=='idle')&&
+			(value.running==null||value.running===false);
 		let phase=index(['ready','stopped','idle','starting','switching','failed','reloading','recovering'],value.runtime)>=0?value.runtime:'unknown';
-		return {running:ready?true:stopped?false:null,core:value.current,phase};
+		return {running:stopped?false:null,core:value.current,phase,check_health:ready};
 	}
 	if(value!=null)return {running:null,core:null};
 	return {running:type(legacy?.running)=='bool'?legacy.running:null,core:'dae'};
 };
+
+export function nailink_health(state,value) {
+	// A different core between requests is a switch, not readiness evidence.
+	if(index(['dae','sing-box','mihomo'],value?.core)<0||state.core!=null&&state.core!=value.core)return state;
+	if(value.ready===true&&value.phase=='ready'&&value.configured===true&&value.listening===true&&
+		value.initialized===true&&value.dns_ready===true&&value.routing_ready===true)
+		return {running:true,core:value.core,phase:'ready',evidence:'health_api'};
+	if(value.ready===true&&value.phase=='inactive'&&value.configured===false)
+		return {running:false,core:value.core,phase:'stopped',evidence:'health_api'};
+	if(value.ready===false) {
+		let pending=index(['starting','switching','reloading','recovering','restoring','dataplane_starting','dns_starting',
+			'core_starting','core_switching','core_reloading','core_recovering'],value.phase)>=0;
+		return {running:null,core:value.core,phase:pending?'recovering':'unknown',reason:pending?'core_transition':'core_not_ready',evidence:'health_api'};
+	}
+	return state;
+}
 
 // Structural evidence from PassWall's running default DNS, never an init exit
 // code. Cache decoded fragments by inode/stat: the observer calls this each
@@ -182,7 +204,10 @@ export function nailink_state(root) {
 	// is read; use a short-lived, scoped local session and always destroy it.
 	let fixture = getenv('ADZERO_PROBE_NAILINK_FIXTURE');
 	if (root && fixture) {
-		try { let data = json(fs.readfile(fixture)); return nailink_status(data.current?data:null,data); }
+		try {
+			let data=json(fs.readfile(fixture)), state=nailink_status(data.current?data:null,data);
+			return state.check_health?nailink_health(state,data.health):state;
+		}
 		catch(e) { return {running:null,core:null}; }
 	}
 	let bus, session, input, output, created = [], result = {running:null,core:null,reason:'api_unavailable'};
@@ -233,14 +258,16 @@ export function nailink_state(root) {
 		}
 		// The CGI itself allows three seconds for local authorization. A 1.5s
 		// caller deadline incorrectly rejects valid replies on slower routers.
-		// Three fixed attempts remain bounded to at most 6.5s of CGI runtime.
+		// Ready status confirmation gets the same authorization budget. At most
+		// two 3.5s calls, or three fallback calls totaling 6.5s, are attempted.
 		let response=request('{coreStatus}',3500), fallback=false;
 		if(response.reason) {
 			result.reason=response.reason;
 			fallback=index(['api_denied','api_rejected'],response.reason)<0;
 		} else if(response.data?.coreStatus!=null) {
 			result=nailink_status(response.data.coreStatus);
-			fallback=result.core==null;
+			fallback=result.check_health===true;
+			if(result.core==null)result.reason='invalid_response';
 		} else {
 			let legacy=request('{general{dae{running}}}',1500);
 			result=legacy.reason?{running:null,core:null,reason:legacy.reason}:nailink_status(null,legacy.data?.general?.dae);
@@ -248,20 +275,10 @@ export function nailink_state(root) {
 		}
 		if(fallback) {
 			// Same authenticated CGI, not an unauthenticated port or process-name
-			// guess. Never override an explicit denial or core transition.
-			let health=request(null,1500), value=health.health;
-			if(health.reason=='api_denied')result={running:null,core:null,reason:'api_denied'};
-			else if(index(['dae','sing-box','mihomo'],value?.core)>=0) {
-				if(value.ready===true&&value.phase=='ready'&&value.configured===true&&value.listening===true&&
-					value.initialized===true&&value.dns_ready===true&&value.routing_ready===true)
-					result={running:true,core:value.core,phase:'ready',evidence:'health_api'};
-				else if(value.ready===true&&value.phase=='inactive'&&value.configured===false)
-					result={running:false,core:value.core,phase:'stopped',evidence:'health_api'};
-				else if(value.ready===false) {
-					let pending=index(['starting','switching','reloading','recovering','restoring','dataplane_starting','dns_starting'],value.phase)>=0;
-					result={running:null,core:value.core,phase:pending?'recovering':'unknown',reason:pending?'core_transition':'core_not_ready',evidence:'health_api'};
-				}
-			}
+			// guess. Never override an explicit denial, false flag or transition.
+			let health=request(null,result.check_health?3500:1500), value=health.health;
+			if(health.reason)result.reason=health.reason;
+			else result=nailink_health(result,value);
 		}
 	} catch(e) { /* Unknown is distinct from stopped. Never emit private responses. */ }
 	for (let path in created) fs.unlink(path);
@@ -269,6 +286,7 @@ export function nailink_state(root) {
 		if (session) try { bus.call('session','destroy',{ubus_rpc_session:session}); } catch(e) {}
 		bus.disconnect();
 	}
+	delete result.check_health;
 	return result;
 };
 export function nailink(root) { return nailink_state(root).running; };

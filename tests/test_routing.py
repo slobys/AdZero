@@ -254,11 +254,11 @@ class RoutingAdapterTest(unittest.TestCase):
 import json,sys
 from pathlib import Path
 p=Path(__file__).resolve().parents[1]/'profiles.json';data=json.loads(p.read_text());r=json.loads(Path(sys.argv[1]).read_text());q=r['query'];v=r['variables']
-if r.get('readiness'):out={k:data.get('healthy',True) for k in ['ready','configured','listening','initialized','dns_ready','routing_ready']}
+if r.get('readiness'):out={k:data.get('healthy',True) for k in ['ready','configured','listening','initialized','dns_ready','routing_ready']} | {'core':data.get('health_core',data.get('native_core','dae')),'phase':data.get('health_phase','ready')}
 elif '__type(' in q:out={'__type':{'fields':[{'name':'logLevel','type':{'kind':'SCALAR','name':'String'}}]}}
 elif 'configs(' in q:out={'configs':[{'id':'global','global':{'logLevel':data.get('global_setting','info')}}],'groups':[{'id':'group','name':'proxy','policy':data.get('group_policy','fixed'),'policyParams':[],'nodes':[{'id':'node','name':'fixture','link':data.get('node_link','fixture-private-node'),'tag':None,'subscriptionID':None}],'subscriptions':[]}]}
 elif 'general{' in q:out={'general':{'dae':{'running':data['running'],'modified':data.get('modified',False)}}}
-elif 'coreStatus' in q:out={'coreStatus':json.dumps({'current':data['native_core'],'runtime':data.get('core_phase','ready'),'running':True,'api_only':False})} if data.get('native_core') else {}
+elif 'coreStatus' in q:out={'coreStatus':json.dumps({'current':data['native_core'],'phase':'stable','runtime':data.get('core_phase','ready'),'api_only':False} | ({} if data.get('omit_running') else {'running':data.get('core_phase')!='stopped'}))} if data.get('native_core') else {}
 elif 'routings(' in q:out={'routings':[data['traffic']],'groups':[{'name':'proxy'}]}
 elif 'dnss(' in q:out={'dnss':[data['dns']]}
 elif 'updateDns' in q:data['dns']['dns']['string']=v['dns'];data['modified']=True;data['writes']=data.get('writes',0)+1;out={'updateDns':{'id':'dns'}}
@@ -300,6 +300,21 @@ p.write_text(json.dumps(data));print(json.dumps(out))
         original=data['dns']
         self.run_adapter('apply',success=False)
         self.assertEqual(json.loads(p.read_text())['dns'],original)
+        self.assertFalse((self.root/'etc/adzero/adapter.json').exists())
+
+    def test_issue_35_adapter_accepts_missing_running_only_with_matching_readiness(self):
+        p=self.nailink_fixture()
+        for core in ('dae','sing-box','mihomo'):
+            with self.subTest(core=core):
+                data=json.loads(p.read_text());data.update(native_core=core,omit_running=True);p.write_text(json.dumps(data))
+                self.assertEqual(self.run_adapter('check').stdout.strip(),'nailink')
+                self.run_adapter('apply')
+                self.assertEqual(json.loads(self.run_adapter('status').stdout)['core'],core)
+                self.run_adapter('remove')
+        data=json.loads(p.read_text());data.update(native_core='dae',health_core='mihomo');p.write_text(json.dumps(data))
+        before=p.read_bytes()
+        self.run_adapter('apply',success=False)
+        self.assertEqual(p.read_bytes(),before)
         self.assertFalse((self.root/'etc/adzero/adapter.json').exists())
 
     def pending_reload(self):

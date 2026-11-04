@@ -7,6 +7,7 @@ import shlex
 import tempfile
 import unittest
 import re
+from test_nailink_state import health
 
 ROOT = Path(__file__).resolve().parents[1]
 PROBE = ROOT / "luci-app-adzero/root/usr/libexec/adzero/probe"
@@ -311,6 +312,51 @@ class ProbeTest(unittest.TestCase):
                 self.assertEqual(result['dns']['active_proxies'],['passwall'])
                 self.assertEqual(result['dns']['uncertain_proxies'],[])
 
+    def test_issue_35_ready_without_running_on_istoreos(self):
+        self.write('etc/openwrt_release', "DISTRIB_ID='iStoreOS'\nDISTRIB_RELEASE='24.10.8'\nDISTRIB_TARGET='x86/64'\n")
+        self.data.update(running=['daed'], uci={'daed.main.enabled':'1'})
+        for core in ('dae', 'sing-box', 'mihomo'):
+            with self.subTest(core=core):
+                if core != 'dae':
+                    self.write('proc/800/cmdline', '/usr/bin/'+core+'\0-c\0/var/run/daed/cores/active-123/config.json\0')
+                Path(self.env['ADZERO_PROBE_NAILINK_FIXTURE']).write_text(json.dumps({
+                    'mode':'tproxy','current':core,'phase':'stable','runtime':'ready','api_only':False,'health':health(core)}))
+                result=self.probe()
+                nailink=result['plugins'][0]
+                self.assertEqual(nailink['runtime'], 'running')
+                self.assertEqual(nailink['core_phase'], 'ready')
+                self.assertEqual(nailink['runtime_evidence'], 'health_api')
+                self.assertTrue(nailink['core_checked'])
+                self.assertTrue(nailink['active'])
+                self.assertEqual(result['dns']['active_proxies'], ['nailink'])
+                self.assertEqual(result['dns']['uncertain_proxies'], [])
+
+    def test_ready_without_running_keeps_worker_conflict_guards(self):
+        self.data.update(running=['daed'], uci={'daed.main.enabled':'1'})
+        for core,workers in (('mihomo',[]),('mihomo',['sing-box']),('dae',['mihomo']),('mihomo',['mihomo','sing-box'])):
+            with self.subTest(core=core,workers=workers):
+                for path in self.root.glob('proc/80*/cmdline'):
+                    path.unlink()
+                for i,worker in enumerate(workers):
+                    self.write(f'proc/{800+i}/cmdline','/usr/bin/'+worker+'\0-c\0/var/run/daed/cores/active-123/config.json\0')
+                Path(self.env['ADZERO_PROBE_NAILINK_FIXTURE']).write_text(json.dumps({
+                    'current':core,'phase':'stable','runtime':'ready','api_only':False,'health':health(core)}))
+                result=self.probe()
+                self.assertEqual(result['dns']['active_proxies'], [])
+                self.assertEqual(result['dns']['uncertain_proxies'], ['nailink'])
+                self.assertEqual(result['plugins'][0]['core_status_reason'], 'core_process_mismatch')
+
+    def test_ready_manager_with_inactive_health_selects_other_proxy(self):
+        self.data.update(running=['daed'],uci={'daed.main.enabled':'1','passwall.@global[0].enabled':'1'})
+        self.write('proc/800/cmdline','/usr/bin/xray\0run\0-c\0/tmp/etc/passwall/acl/default/client.json\0')
+        Path(self.env['ADZERO_PROBE_NAILINK_FIXTURE']).write_text(json.dumps({
+            'current':'dae','phase':'stable','runtime':'ready','api_only':False,
+            'health':health(phase='inactive',configured=False)}))
+        result=self.probe()
+        self.assertEqual(result['plugins'][0]['runtime'], 'stopped')
+        self.assertEqual(result['dns']['active_proxies'], ['passwall'])
+        self.assertEqual(result['dns']['uncertain_proxies'], [])
+
     def test_stopped_nailink_api_cannot_hide_an_owned_worker(self):
         self.data.update(running=['daed'],uci={'daed.main.enabled':'1'})
         for core in ('sing-box','mihomo'):
@@ -340,7 +386,7 @@ class ProbeTest(unittest.TestCase):
         self.data.update(running=['daed'],services={'openclash':True},uci={'daed.main.enabled':'1','passwall2.@global[0].enabled':'1','openclash.config.enable':'1'})
         for core,args in [('sing-box','run\0-D\0/var/run/daed/cores/active-123\0-c\0/var/run/daed/cores/active-123/config.json\0'),('mihomo','-d\0/var/run/daed/cores/active-123\0-f\0/var/run/daed/cores/active-123/config.json\0')]:
             with self.subTest(core=core):
-                Path(self.env['ADZERO_PROBE_NAILINK_FIXTURE']).write_text(json.dumps({'current':core,'runtime':'ready','running':True,'api_only':False,'private':'SECRET-CORE-STATUS'}))
+                Path(self.env['ADZERO_PROBE_NAILINK_FIXTURE']).write_text(json.dumps({'current':core,'runtime':'ready','running':True,'api_only':False,'private':'SECRET-CORE-STATUS','health':health(core)}))
                 self.write('proc/800/cmdline','/usr/bin/'+core+'\0'+args)
                 result=self.probe(); rows={p['id']:p for p in result['plugins']}
                 self.assertEqual(result['dns']['active_proxies'],['nailink'])
@@ -363,7 +409,7 @@ class ProbeTest(unittest.TestCase):
 
     def test_nailink_validation_and_stale_core_status_cannot_claim_a_worker(self):
         self.data.update(running=['daed'],uci={'daed.main.enabled':'1'})
-        Path(self.env['ADZERO_PROBE_NAILINK_FIXTURE']).write_text('{"current":"mihomo","runtime":"ready","running":true}')
+        Path(self.env['ADZERO_PROBE_NAILINK_FIXTURE']).write_text(json.dumps({'current':'mihomo','runtime':'ready','running':True,'health':health('mihomo')}))
         for args in ('-t\0-d\0/var/run/daed/cores/check-123\0-f\0/var/run/daed/cores/check-123/config.json\0','-d\0/var/run/daed/cores/active-other/../check-123\0-f\0/var/run/daed/cores/check-123/config.json\0'):
             self.write('proc/800/cmdline','/usr/bin/mihomo\0'+args)
             self.assertEqual(self.probe()['dns']['active_proxies'],[])
@@ -391,7 +437,7 @@ class ProbeTest(unittest.TestCase):
 
     def test_nailink_protocol_helper_is_not_a_second_transparent_core(self):
         self.data.update(running=['daed'],uci={'daed.main.enabled':'1','passwall.@global[0].enabled':'0'})
-        Path(self.env['ADZERO_PROBE_NAILINK_FIXTURE']).write_text('{"current":"mihomo","runtime":"ready","running":true}')
+        Path(self.env['ADZERO_PROBE_NAILINK_FIXTURE']).write_text(json.dumps({'current':'mihomo','runtime':'ready','running':True,'health':health('mihomo')}))
         self.write('proc/800/cmdline','/usr/bin/mihomo\0-f\0/var/run/daed/cores/active-123/config.json\0')
         self.write('proc/801/cmdline','/usr/bin/sing-box\0run\0-c\0/var/run/daed/cores/active-123/extra/config.json\0')
         result=self.probe()

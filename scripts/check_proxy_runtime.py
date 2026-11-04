@@ -41,6 +41,9 @@ access=$(ubus call session access "{\\"ubus_rpc_session\\":\\"$session\\",\\"sco
 if [ "$REQUEST_METHOD" = GET ] && [ "$PATH_INFO" = /health/ready ]; then
  printf 'health\\n' >> /tmp/requests
  case "$(cat /tmp/scenario)" in
+  native|native_slow|native_object) printf 'Status: 200 OK\\r\\n\\r\\n{"core":"sing-box","phase":"ready","ready":true,"configured":true,"listening":true,"initialized":true,"dns_ready":true,"routing_ready":true}';;
+  issue35) printf 'Status: 200 OK\\r\\n\\r\\n{"core":"dae","phase":"ready","ready":true,"configured":true,"listening":true,"initialized":true,"dns_ready":true,"routing_ready":true}';;
+  issue35_stopped) printf 'Status: 200 OK\\r\\n\\r\\n{"core":"dae","phase":"inactive","ready":true,"configured":false}';;
   health_ready|health_slow) printf 'Status: 200 OK\\r\\n\\r\\n{"core":"mihomo","phase":"ready","ready":true,"configured":true,"listening":true,"initialized":true,"dns_ready":true,"routing_ready":true}';;
   health_incomplete) printf 'Status: 200 OK\\r\\n\\r\\n{"core":"mihomo","phase":"ready","ready":true}';;
   health_pending) printf 'Status: 503 Unavailable\\r\\n\\r\\n{"core":"mihomo","phase":"restoring","ready":false}';;
@@ -54,6 +57,7 @@ fi
 body=$(cat)
 if [ "$body" = '{"query":"{coreStatus}"}' ]; then
  case "$(cat /tmp/scenario)" in
+  issue35|issue35_stopped) printf '%s\\r\\n\\r\\n%s' 'Status: 200 OK' '{"data":{"coreStatus":"{\\"mode\\":\\"tproxy\\",\\"current\\":\\"dae\\",\\"phase\\":\\"stable\\",\\"runtime\\":\\"ready\\",\\"api_only\\":false}"}}';;
   native) printf 'Status: 200 OK\\r\\n\\r\\n{"data":{"coreStatus":"{\\"current\\":\\"sing-box\\",\\"runtime\\":\\"ready\\",\\"running\\":true}"}}';;
   native_slow) sleep 2; printf 'Status: 200 OK\\r\\n\\r\\n{"data":{"coreStatus":"{\\"current\\":\\"sing-box\\",\\"runtime\\":\\"ready\\",\\"running\\":true}"}}';;
   native_object) printf 'Status: 200 OK\\r\\n\\r\\n{"data":{"coreStatus":{"current":"sing-box","runtime":"ready","running":true}}}';;
@@ -86,7 +90,7 @@ esac
                 procs.append(subprocess.Popen(['chroot',tmp,*command],env=child,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL))
                 time.sleep(.2)
             rows=[]
-            for scenario,expected in [('true',True),('false',False),('native',True),('native_slow',True),('native_object',True),('health_ready',True),('health_slow',True),('health_incomplete',None),('health_pending',None),('health_restore_failed',None),('health_inactive',False),('switching',None),('legacy422',True),('core_denied',None),('denied',None),('errors',None),('invalid',None),('broken',None),('slow',None)]:
+            for scenario,expected in [('issue35',True),('issue35_stopped',False),('true',True),('false',False),('native',True),('native_slow',True),('native_object',True),('health_ready',True),('health_slow',True),('health_incomplete',None),('health_pending',None),('health_restore_failed',None),('health_inactive',False),('switching',None),('legacy422',True),('core_denied',None),('denied',None),('errors',None),('invalid',None),('broken',None),('slow',None)]:
                 (base/'tmp/scenario').write_text(scenario)
                 (base/'tmp/requests').write_text('')
                 started=time.monotonic();result=run('/usr/bin/ucode','/usr/libexec/adzero/probe-test.uc');elapsed=time.monotonic()-started
