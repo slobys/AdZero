@@ -260,12 +260,14 @@ elif 'configs(' in q:out={'configs':[{'id':'global','global':{'logLevel':data.ge
 elif 'general{' in q:out={'general':{'dae':{'running':data['running'],'modified':data.get('modified',False)}}}
 elif 'coreStatus' in q:out={'coreStatus':json.dumps({'current':data['native_core'],'phase':'stable','runtime':data.get('core_phase','ready'),'api_only':False} | ({} if data.get('omit_running') else {'running':data.get('core_phase')!='stopped'}))} if data.get('native_core') else {}
 elif 'routings(' in q:out={'routings':[data['traffic']],'groups':[{'name':'proxy'}]}
+elif 'routings{' in q:out={'routings':[data['traffic'],*data.get('inactive_routes',[])]}
 elif 'dnss(' in q:out={'dnss':[data['dns']]}
 elif 'updateDns' in q:data['dns']['dns']['string']=v['dns'];data['modified']=True;data['writes']=data.get('writes',0)+1;out={'updateDns':{'id':'dns'}}
 elif 'updateRouting' in q:
  flag=p.parent/('fail-alias-route-once' if 'ADZERO ALIAS BRIDGE' in v['routing'] else 'fail-route-once')
  if flag.exists():flag.unlink();sys.exit(1)
- data['traffic']['routing']['string']=v['routing'];out={'updateRouting':{'id':'route'}}
+ assert v['id']==data['traffic']['id']
+ data['traffic']['routing']['string']=v['routing'];out={'updateRouting':{'id':v['id']}}
 elif 'run(dry:false)' in q:
  data['runs']+=1
  if (p.parent/'hold-reload').exists():p.write_text(json.dumps(data));sys.exit(1)
@@ -372,12 +374,18 @@ p.write_text(json.dumps(data));print(json.dumps(out))
         self.run_adapter('remove');after=json.loads(p.read_text());self.assertEqual(after['traffic'],before['traffic']);self.assertEqual(after['dns'],before['dns'])
 
     def test_handoff_from_stopped_nailink_to_passwall_keeps_old_core_stopped(self):
-        for routing in (True,False):
-            with self.subTest(routing=routing):
+        for routing,replaced in ((True,False),(False,False),(True,True)):
+            with self.subTest(routing=routing,replaced=replaced):
                 p=self.nailink_fixture()
                 if not routing:self.write('etc/config/adzero',"config adzero 'main'\n option routing_enabled '0'\n")
                 self.run_adapter('apply')
-                original=json.loads(p.read_text());original['running']=False;p.write_text(json.dumps(original))
+                original=json.loads(p.read_text())
+                original['running']=False
+                if replaced:
+                    original['traffic']['id']='replacement'
+                    original['traffic']['routing']['string']=original['traffic']['routing']['string'].replace(
+                        'domain(full: user.example) -> direct','domain(full: changed.example) -> proxy')
+                p.write_text(json.dumps(original))
                 self.select('passwall')
                 inventory=Path(self.env['ADZERO_ADAPTER_INVENTORY']);data=json.loads(inventory.read_text())
                 data['plugins'].append({'id':'nailink','installed':True,'enabled':True,'runtime':'stopped','active':False})
@@ -387,6 +395,10 @@ p.write_text(json.dumps(data));print(json.dumps(out))
                 self.assertFalse(after['running'])
                 self.assertEqual(after['runs'],original['runs'])
                 self.assertNotIn('ADZERO MANAGED BEGIN',after['dns']['dns']['string'])
+                if replaced:
+                    self.assertEqual(after['traffic']['id'],'replacement')
+                    self.assertEqual(after['traffic']['routing']['string'],
+                                     'domain(full: changed.example) -> proxy\n\nfallback: proxy')
                 self.assertEqual(json.loads(self.run_adapter('status').stdout)['plugin'],'passwall')
                 self.run_adapter('remove')
 
@@ -613,6 +625,52 @@ PY
         after=json.loads(p.read_text())
         self.assertEqual(after['dns'],current['dns'])
         self.assertEqual(after['traffic'],current['traffic'])
+
+    def test_close_restores_only_owned_blocks_from_replaced_route(self):
+        p=self.nailink_fixture()
+        self.run_adapter('apply')
+        data=json.loads(p.read_text())
+        data['traffic']['id']='replacement'
+        data['traffic']['routing']['string']=data['traffic']['routing']['string'].replace(
+            'domain(full: user.example) -> direct','domain(full: new.example) -> proxy')
+        p.write_text(json.dumps(data))
+
+        self.write('fail-route-once','1')
+        self.run_adapter('remove',success=False)
+        record=self.root/'etc/adzero/adapter.json'
+        self.assertEqual(json.loads(record.read_text())['traffic']['id'],'replacement')
+        self.run_adapter('remove')
+        restored=json.loads(p.read_text())
+        self.assertEqual(restored['traffic']['id'],'replacement')
+        self.assertEqual(restored['traffic']['routing']['string'],
+                         'domain(full: new.example) -> proxy\n\nfallback: proxy')
+        self.assertEqual(restored['runs'],data['runs']+1)
+        self.assertFalse(record.exists())
+
+    def test_replaced_route_requires_exclusive_unmodified_owned_blocks(self):
+        p=self.nailink_fixture()
+        self.run_adapter('apply')
+        original=json.loads(p.read_text())
+        for conflict in ('edited', 'old_profile_present', 'other_provider_reference', 'pending_profile'):
+            with self.subTest(conflict=conflict):
+                data=json.loads(json.dumps(original))
+                data['traffic']['id']='replacement'
+                if conflict=='edited':
+                    data['traffic']['routing']['string']=data['traffic']['routing']['string'].replace(
+                        'adzero-cn-geoip.dat','changed-geoip.dat')
+                if conflict=='old_profile_present':
+                    data['inactive_routes']=[original['traffic']]
+                if conflict=='other_provider_reference':
+                    data['inactive_routes']=[{'id':'other','routing':{
+                        'string':'dip(ext:"adzero-cn-geoip.dat:adzero") -> direct\nfallback: proxy\n'}}]
+                if conflict=='pending_profile':
+                    data['modified']=True
+                p.write_text(json.dumps(data))
+                self.run_adapter('remove',success=False)
+                self.assertEqual(json.loads(p.read_text()),data)
+                status=json.loads(self.run_adapter('status').stdout)
+                self.assertEqual(status['recovery_reason'],'nailink_routing_conflict')
+                self.assertTrue((self.root/'etc/daed/adzero-cn-geoip.dat').exists())
 
     def test_nailink_unconfirmed_reload_does_not_start_rollback_mutations(self):
         p=self.nailink_fixture()

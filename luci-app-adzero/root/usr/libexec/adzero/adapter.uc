@@ -374,10 +374,49 @@ function selected_traffic(require_proxy) {
 	if((require_proxy??split_enabled)&&index(map(data.groups??[],g=>g.name),target)<0)die('无法确认 NaiLink 默认代理策略，请检查当前路由。');
 	return {id:current.id,text:current.routing.string,target};
 }
-function update_traffic(id,text) {
+function routing_restore_conflict() {
+	if (journal.recovery_reason != 'nailink_routing_conflict') {
+		journal.recovery_reason = 'nailink_routing_conflict';
+		save();
+	}
+	progress.failure('nailink_routing_conflict');
+	die(progress.messages.nailink_routing_conflict);
+}
+function update_traffic(id,text,expected) {
 	nailink_capture_foreign();
 	graphql('query($raw:String!){parsedRouting(raw:$raw){string}}',{raw:text});
+	if (expected != null) {
+		let current = selected_traffic();
+		if (current.id != id || current.text != expected) routing_restore_conflict();
+	}
 	graphql('mutation($id:ID!,$routing:String!){updateRouting(id:$id,routing:$routing){id}}',{id,routing:text});
+	if (expected != null) {
+		let current = selected_traffic();
+		if (current.id != id || current.text != text) routing_restore_conflict();
+	}
+}
+function restore_traffic_plan(runtime) {
+	let current = selected_traffic(), recorded = journal.traffic;
+	if (current.id == recorded.id) {
+		if (index([recorded.before, recorded.after, recorded.previous_after], current.text) < 0)
+			routing_restore_conflict();
+		return current;
+	}
+	// A replaced profile may carry the original blocks plus new user rules.
+	// Only rebind when the original is gone and no other profile uses our data.
+	let clean = runtime?.modified === false && journal.split && !journal.alias
+		? route.restore_copied_dae_routing(current.text, recorded) : null;
+	if (clean == null) routing_restore_conflict();
+	let profiles = graphql('{routings{id routing{string}}}').routings;
+	if (type(profiles) != 'array') routing_restore_conflict();
+	let matching = filter(profiles, p => p.id == current.id);
+	if (length(matching) != 1 || matching[0].routing?.string !== current.text ||
+		length(filter(profiles, p => p.id == recorded.id ||
+			p.id != current.id && route.dae_routing_references(p.routing?.string))))
+		routing_restore_conflict();
+	// Save both sides before mutation so a retry can recognize a completed write.
+	journal.traffic = {id:current.id, before:trim(clean), after:current.text};
+	return current;
 }
 function apply_alias(plugin){
 	if(plugin!='nailink')return;
@@ -866,8 +905,10 @@ function apply_split(plugin) {
 function restore() {
 	if(fs.lstat(state_dir+'/dns-guard.json'))guard('hold');
 	if (!journal) {if(action=='remove'){guard('cleanup');stop_pool();}return;}
+	let runtime;
 	if(journal.plugin=='nailink'){
-		let runtime=nailink_runtime_state(true),started=monotime();
+		runtime=nailink_runtime_state(true);
+		let started=monotime();
 		while(runtime.running==null && action=='remove' && index(['starting','switching','reloading','recovering'],runtime.phase)>=0 && monotime()-started<300){
 			progress.stage('waiting_proxy');
 			if(root && getenv('ADZERO_NAILINK_API_FIXTURE'))break;
@@ -879,6 +920,8 @@ function restore() {
 		}
 	}
 	confirm_nailink_recovery();
+	let traffic = journal.traffic ? restore_traffic_plan(runtime) : null;
+	delete journal.recovery_reason;
 	progress.stage('restoring');
 	journal.stage = 'restoring'; save();
 	let profile_changed=false;
@@ -908,7 +951,10 @@ function restore() {
 		let restored = current.dns.string == journal.dns.after||current.dns.string==journal.dns.previous_after ? journal.dns.before : lib.strip_block(current.dns.string);
 		if (current.dns.string != restored) { update_dns(current.id, restored);profile_changed=true; }
 	}
-	if(journal.traffic){let current=selected_traffic();if(current.id!=journal.traffic.id || current.text!=journal.traffic.after && current.text!=journal.traffic.before&&current.text!=journal.traffic.previous_after)die('NaiLink 流量路由已修改，恢复记录保留。');if(current.text!=journal.traffic.before){update_traffic(current.id,journal.traffic.before);profile_changed=true;}}
+	if (traffic && traffic.text != journal.traffic.before) {
+		update_traffic(traffic.id, journal.traffic.before, traffic.text);
+		profile_changed = true;
+	}
 	let original_loaded=false;
 	if(journal.plugin=='nailink'&&!profile_changed){
 		let runtime=nailink_runtime_state(true);
@@ -1215,6 +1261,7 @@ try {
 		print(sprintf('%J\n', {plugin:journal?.plugin ?? 'none', core:journal?.core??null, stage:journal?.stage ?? 'inactive', domains:journal?.count ?? 0,
 			dns_policy:{managed:journal?.plugin!='passwall2',domestic:dns_profile.domestic.mode??'single',foreign:dns_profile.foreign.mode??'single',strict:!!dns_profile.strict,guard:protection?.state??'off',scope:'default_lan_ipv4_dns',doh:'device_policy_required',passwall_dns_mode:index(['tcp','xray','sing-box','dns2socks'],uci.get('passwall','@global[0]','dns_mode'))>=0?uci.get('passwall','@global[0]','dns_mode'):null},
 			client_dns_verified:false, router_dns_verified:false,reload_pending:!!journal?.nailink_reload_unconfirmed,
+			recovery_reason:journal?.recovery_reason == 'nailink_routing_conflict' ? journal.recovery_reason : null,
 			runtime:native_runtime[journal?.plugin]?native_dns_state():null,
 			runtime_retry_exhausted:(journal?.runtime_retries??0)>=3,
 			routing:{enabled:split_enabled,mode:journal?.split?.mode??'inactive',traffic_verified:false}}));

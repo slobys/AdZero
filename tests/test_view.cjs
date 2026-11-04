@@ -260,6 +260,9 @@ function check(value, label) { assert.ok(value, label); assertions++; }
   check(!commands.length,'closing state never submits duplicate or competing actions');
   for(let n=0;n<70;n++)await poll.tick();
   check(commands.filter(v=>v==='status').length>12,'persistent closing continues read-only observation beyond the short recovery window');
+  reset({state:'closing',managed:true,shutdown:{requested:true},adapter:{plugin:'nailink',recovery_reason:'nailink_routing_conflict'}});
+  check(find('az-toggle').disabled&&!find('az-toggle').attrs['aria-busy']&&text(root).includes('关闭恢复受阻'),
+    'a routing conflict explains the blocked close instead of showing an endless spinner');
   reset({state:'configured_unverified',managed:true});staleResult=true;
   jobSteps=[()=>{state={...state,state:'closing',shutdown:{requested:true}};return {ok:false,pending:false,reason:'lock_busy'};}];
   await app.runAction('disable');
