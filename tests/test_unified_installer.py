@@ -57,10 +57,11 @@ class PortableInstaller(unittest.TestCase):
         self.f=test_installer.InstallerTest();self.f.setUp();self.addCleanup(self.f.doCleanups)
         (self.f.release/'dependencies.tsv').write_text('')
 
-    def platform(self,family='OpenWrt',manager='apk',release='25.12.6'):
+    def platform(self,family='OpenWrt',manager='apk',release='25.12.6',
+                 revision='2026102312',target='x86/64',arch='x86_64'):
         f=self.f
         for n in ['apk','opkg']:(f.bin/n).unlink(missing_ok=True)
-        f.write('etc/openwrt_release',f"DISTRIB_ID='{family}'\nDISTRIB_RELEASE='{release}'\nDISTRIB_TARGET='x86/64'\nDISTRIB_ARCH='x86_64'\nDISTRIB_REVISION='2026102312'\n")
+        f.write('etc/openwrt_release',f"DISTRIB_ID='{family}'\nDISTRIB_RELEASE='{release}'\nDISTRIB_TARGET='{target}'\nDISTRIB_ARCH='{arch}'\nDISTRIB_REVISION='{revision}'\n")
         p=f.bin/manager;p.write_text(MANAGER);p.chmod(0o755)
         ext='ipk' if manager=='opkg' else 'apk'
         (f.release/('adzero-test.'+ext)).write_bytes((f.release/'adzero-test.ipk').read_bytes())
@@ -196,10 +197,11 @@ rm "$ADZERO_INSTALL_ROOT/etc/adzero/adapter.json" "$ADZERO_INSTALL_ROOT/etc/adze
                 self.assertEqual(self.events('--upgrade'),['fetch-before-disable','ctl disable','commit-'+manager])
 
     def test_exact_vendor_supplement_passes_all_missing_files_to_native_manager(self):
-        self.platform('iStoreOS');f=self.f
+        self.platform('iStoreOS', revision='2026103017', target='rockchip/armv8', arch='aarch64_generic')
+        f=self.f
         f.env.update(MISSING_DEP='1',EXPECTED_EXTRA_PACKAGES='6')
         names=['adblock-fast','conntrack','coreutils-timeout','libnetfilter-cthelper0','libnetfilter-cttimeout1','libnetfilter-queue1']
-        profile='istoreos-25.12.6-2026102312-x86-64-x86_64-apk';files={};rows=[]
+        profile='istoreos-25.12.6-2026102312-rockchip-armv8-aarch64_generic-apk';files={};rows=[]
         for name in names:
             filename=name+'-1-r1.apk';data=name.encode();files[profile+'/packages/'+filename]=data
             rows.append(hashlib.sha256(data).hexdigest()+'\t'+filename+'\t'+name+'\n')
@@ -209,8 +211,15 @@ rm "$ADZERO_INSTALL_ROOT/etc/adzero/adapter.json" "$ADZERO_INSTALL_ROOT/etc/adze
             for name,data in files.items():
                 m=tarfile.TarInfo(name);m.size=len(data);t.addfile(m,io.BytesIO(data))
         sha=hashlib.sha256(p.read_bytes()).hexdigest()
-        (f.release/'dependencies.tsv').write_text(f'{sha}\t{p.name}\tistoreos\t25.12.6\t2026102312\tx86/64\tx86_64\tapk\t{profile}\n')
+        (f.release/'dependencies.tsv').write_text(f'{sha}\t{p.name}\tistoreos\t25.12.6\t2026103017\trockchip/armv8\taarch64_generic\tapk\t{profile}\n')
         self.assertEqual(self.events(),['commit-apk'])
+        f.log.unlink()
+        self.platform('iStoreOS', revision='2026110100', target='rockchip/armv8', arch='aarch64_generic')
+        f.env.update(DOWNLOAD_FAIL='1', EXISTING_APP='1')
+        result = f.run_installer('--upgrade', success=False)
+        self.assertIn('revision=2026110100', result.stderr)
+        self.assertIn('没有唯一匹配的原厂依赖补充包', result.stderr)
+        self.assertEqual(f.log.read_text().splitlines(), ['fetch-before-disable'])
 
     def test_system_replacement_is_blocked_before_disable(self):
         self.platform();self.f.env.update(UNSAFE_PLAN='1',EXISTING_APP='1')

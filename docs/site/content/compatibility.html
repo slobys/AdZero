@@ -12,7 +12,8 @@
 <h2 id="istoreos-24108">iStoreOS 原厂依赖补充范围</h2>
 <table><thead><tr><th>固件构建</th><th>目标</th><th>依赖格式</th></tr></thead><tbody>
 <tr><td>iStoreOS 24.10.8，修订号 2026073111</td><td>x86/64、armsr/armv8、rockchip/armv8</td><td>原生 OPKG/IPK，含原厂 ucode-mod-socket</td></tr>
-<tr><td>iStoreOS 25.12.6，修订号 2026102312</td><td>x86/64、armsr/armv8、rockchip/armv8</td><td>原生 APK</td></tr></tbody></table>
+<tr><td>iStoreOS 25.12.6，修订号 2026102312</td><td>x86/64、armsr/armv8、rockchip/armv8</td><td>原生 APK</td></tr>
+<tr><td>iStoreOS 25.12.6，修订号 2026103017</td><td>rockchip/armv8（官方 R6S、R6XS 镜像）</td><td>原生 APK，离线安装验证</td></tr></tbody></table>
 <p>补充包只在本机缺依赖时使用，安装器自动匹配并校验 SHA-256。其他 iStoreOS 构建若原生源已满足依赖，仍可正常安装同一插件；若不能满足，则安全停止，不借用其他修订号的原生组件。</p>
 <h2 id="evidence">测试与真实设备的边界</h2>
 <p>SDK 编译、原生软件包求解和隔离回归测试分别记录。它们不代表所有物理设备的 LAN、IPv6、各代理组合与回滚路径都经过现场验收。本版本不在你的在线路由器上执行升级、重启或切换代理；首次安装也不会自动接管正在工作的 DNS。</p>

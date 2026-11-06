@@ -32,6 +32,11 @@ DEPENDENCY_ORIGINS = {
     'adzero-istoreos-24108-r6xs-beta.tar.gz': '3231de521d4df73607d340cde81d714aab51d9582e6f6c851680e191fa8915de',
     'adzero-istoreos-24108-x86_64-beta.tar.gz': '10fe47d0c83ce0151d87d19550173665931fb7d0dbb743a9f6a18fcb153b3e44',
 }
+# Both original R6S and R6XS APK databases accept this unchanged closure.
+# See docs/evidence/istoreos-25.12.6/rockchip-2026103017-dependencies.json.
+VERIFIED_DEPENDENCY_REVISIONS = {
+    ('istoreos', '25.12.6', '2026102312', 'rockchip/armv8', 'aarch64_generic', 'apk'): ('2026103017',),
+}
 
 
 def digest(data):
@@ -105,7 +110,15 @@ def dependency_bundle(directory, output):
                 raise ValueError('Incomplete native dependency closure')
             files[prefix + '/packages.tsv'] = ''.join(package_rows).encode()
             rows.append((identity, prefix))
+            extra_revisions = VERIFIED_DEPENDENCY_REVISIONS.get(identity, ())
+            for revision in extra_revisions:
+                compatible = (*identity[:2], revision, *identity[3:])
+                if compatible in identities:
+                    raise ValueError('Duplicate dependency platform')
+                identities.add(compatible)
+                rows.append((compatible, prefix))
             origins.append({'asset': name, 'sha256': expected, 'identity': identity,
+                            'verified_additional_revisions': extra_revisions,
                             'application_reused': False, 'dependencies': sorted(selected)})
     target = output / 'adzero-dependencies.tar.gz'
     with target.open('wb') as destination:
