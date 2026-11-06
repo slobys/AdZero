@@ -30,7 +30,7 @@
   "evidence_levels": ["source_review", "offline_fixture", "sdk_build", "device_install", "client_filtering"],
   "policy": "Identify the actual package manager, package architecture, dependencies and DNS path. Never infer filtering from a plugin name, firmware release or CPU bitness.",
   "unified_install": {
-    "release": "v0.23.8",
+    "release": "v0.23.9",
     "channel": "stable",
     "firmwares": [
       "openwrt",
@@ -45,6 +45,18 @@
     "fresh_install_enabled": false,
     "upgrade_preserves_switch": true,
     "legacy_sdk_rows": "historical_build_evidence_not_patch_whitelist",
+    "additional_dependency_validation": [
+      {
+        "firmware": "istoreos",
+        "release": "25.12.6",
+        "revision": "2026103017",
+        "target": "rockchip/armv8",
+        "arch": "aarch64_generic",
+        "format": "apk",
+        "evidence": "evidence/istoreos-25.12.6/rockchip-2026103017-dependencies.json",
+        "device_acceptance": "not_run"
+      }
+    ],
     "device_acceptance": "not_run_for_this_release"
   }
 }

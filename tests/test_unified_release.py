@@ -27,7 +27,7 @@ class UnifiedRelease(unittest.TestCase):
                 m=tarfile.TarInfo(name);m.size=len(data);t.addfile(m,io.BytesIO(data))
         return buffer.getvalue()
 
-    def origin(self,changed_digest=False,duplicate=False):
+    def origin(self,changed_digest=False,duplicate=False,target='x86/64',arch='x86_64'):
         packages=[];files={}
         for name in sorted(release.DEPENDENCIES):
             filename=name+'-1-r1.apk';data=name.encode()
@@ -37,7 +37,7 @@ class UnifiedRelease(unittest.TestCase):
         packages.append({'name':'luci-app-adzero','file':'old.apk','sha256':'0'*64})
         files['packages/old.apk']=b'do not distribute'
         if duplicate:packages.append(packages[0])
-        meta={'firmware':'istoreos','release':'25.12.6','revision':'2026102312','target':'x86/64','arch':'x86_64','packages':packages}
+        meta={'firmware':'istoreos','release':'25.12.6','revision':'2026102312','target':target,'arch':arch,'packages':packages}
         files['manifest.json']=json.dumps(meta).encode()
         p=self.root/'origin.tar.gz';p.write_bytes(self.tar(files))
         return {p.name:'0'*64 if changed_digest else hashlib.sha256(p.read_bytes()).hexdigest()}
@@ -52,6 +52,18 @@ class UnifiedRelease(unittest.TestCase):
             self.assertFalse(any('old.apk' in m.name or 'luci-app-adzero' in m.name for m in t.getmembers()))
         row=(self.out/'dependencies.tsv').read_text().strip().split('\t')
         self.assertEqual(row[2:8],['istoreos','25.12.6','2026102312','x86/64','x86_64','apk'])
+
+    def test_verified_rockchip_revision_reuses_one_native_profile(self):
+        origins = self.origin(target='rockchip/armv8', arch='aarch64_generic')
+        with mock.patch.object(release, 'DEPENDENCY_ORIGINS', origins):
+            report = release.dependency_bundle(self.root, self.out)
+        rows = [line.split('\t') for line in (self.out/'dependencies.tsv').read_text().splitlines()]
+        self.assertEqual([row[4] for row in rows], ['2026102312', '2026103017'])
+        self.assertEqual(rows[0][5:], rows[1][5:])
+        self.assertEqual(report[0]['identity'][2], '2026102312')
+        self.assertEqual(report[0]['verified_additional_revisions'], ('2026103017',))
+        with tarfile.open(self.out/'adzero-dependencies.tar.gz') as archive:
+            self.assertEqual(len(archive.getmembers()), 7)
 
     def test_changed_origin_fails_before_repacking(self):
         with mock.patch.object(release,'DEPENDENCY_ORIGINS',self.origin(changed_digest=True)):
