@@ -1,0 +1,85 @@
+{
+  "verified_on": "2026-11-06",
+  "firmware": "istoreos",
+  "release": "25.12.6",
+  "revision": "2026103017",
+  "target": "rockchip/armv8",
+  "arch": "aarch64_generic",
+  "format": "apk",
+  "tested_application": "luci-app-adzero_0.23.9-r1_noarch.apk",
+  "application_sha256": "9af99cbda5392b616943a1cc59082be6db00a3c2621c9ffa061625b186980806",
+  "application_source_sha256": "6315b29efa36423a7efb8473e525329fd04088c9a10aebc0a6b8d52b330bc2ed",
+  "tested_installer_sha256": "d8ed09f417116866a7271de52c0a047958042b8816915fa2a392414ae6c5e3f5",
+  "dependency_bundle_sha256": "eadc7eb5c13f03661ed1ed1a7c06d18b31edda6021a41df51e0a9021b0d9ca59",
+  "dependency_origin": {
+    "asset": "adzero-istoreos-rockchip-r6xs-beta.tar.gz",
+    "sha256": "5a8145b2ed4d72c6049a230bdb790ae2394d7b499f72f0b9dd948a95925791aa",
+    "identity": [
+      "istoreos",
+      "25.12.6",
+      "2026102312",
+      "rockchip/armv8",
+      "aarch64_generic",
+      "apk"
+    ],
+    "verified_additional_revisions": [
+      "2026103017"
+    ],
+    "application_reused": false,
+    "dependencies": [
+      "adblock-fast",
+      "conntrack",
+      "coreutils-timeout",
+      "libnetfilter-cthelper0",
+      "libnetfilter-cttimeout1",
+      "libnetfilter-queue1"
+    ]
+  },
+  "checks": {
+    "v0.23.8_offline_check": "failed_missing_adblock-fast_conntrack_coreutils-timeout",
+    "v0.23.9_offline_check": "passed_original_apk_db_unchanged",
+    "v0.23.9_offline_install": "passed_installer_and_native_apk_transaction",
+    "device_acceptance": "not_run"
+  },
+  "scope": "Host apk-tools 3.0.5 on disposable copies of both factory SquashFS roots. Network and package hooks disabled, so this verifies package selection and installation only.",
+  "images": [
+    {
+      "board": "r6s",
+      "official_image": "https://fw.koolcenter.com/iStoreOS/r6s/istoreos-25.12.6-2026103017-r6s-squashfs.img.gz",
+      "image_sha256": "81e49f6f310be016ca971bad1a500ce4132e958361469469c0c624747eba25b9",
+      "squashfs_offset_bytes": 84934656,
+      "original_apk_db_sha256": "3ca3d2e506a9f80f1de6928ebb556b71dcc62ff3785eb602e34e690a3395ee2e",
+      "packages_before": 940,
+      "packages_after": 947,
+      "added_packages": {
+        "adblock-fast": "1.2.4-r4",
+        "conntrack": "1.4.8-r1",
+        "coreutils-timeout": "9.9-r2",
+        "libnetfilter-cthelper0": "1.0.0-r2",
+        "libnetfilter-cttimeout1": "1.0.0-r2",
+        "libnetfilter-queue1": "1.0.5-r4",
+        "luci-app-adzero": "0.23.9-r1"
+      },
+      "original_packages_removed_or_changed": 0
+    },
+    {
+      "board": "r6xs",
+      "official_image": "https://fw.koolcenter.com/iStoreOS/r6xs/istoreos-25.12.6-2026103017-r6xs-squashfs.img.gz",
+      "image_sha256": "3fa1f45dd35a18765d5296651342072319c6f22021577145516b373995555e60",
+      "squashfs_offset_bytes": 84934656,
+      "original_apk_db_sha256": "3ca3d2e506a9f80f1de6928ebb556b71dcc62ff3785eb602e34e690a3395ee2e",
+      "packages_before": 940,
+      "packages_after": 947,
+      "added_packages": {
+        "adblock-fast": "1.2.4-r4",
+        "conntrack": "1.4.8-r1",
+        "coreutils-timeout": "9.9-r2",
+        "libnetfilter-cthelper0": "1.0.0-r2",
+        "libnetfilter-cttimeout1": "1.0.0-r2",
+        "libnetfilter-queue1": "1.0.5-r4",
+        "luci-app-adzero": "0.23.9-r1"
+      },
+      "original_packages_removed_or_changed": 0
+    }
+  ]
+}

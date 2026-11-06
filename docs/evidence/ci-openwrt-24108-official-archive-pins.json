@@ -58,5 +58,17 @@
     "control_change": "SourceDateEpoch:1792564006 ->1793440229",
     "payload_sha256": "35a450ce0c155cf4be026ff84a0c9f30dc95c938d1231cff64721941ac4d36be",
     "payload_unchanged": true
+  },
+  "timeout_executable_pin": {
+    "checked_at_utc": "2026-11-06",
+    "scope": "PassWall and DNS pool runtime test fixture only",
+    "package_sha256": "58ce2fed33f50b961aff18a5bef75a32e28aec2c0756262849b5064554a379bf",
+    "archive_packages_gz_sha256": "b4fe81053780727b39a350d3b142cdfabee6f43eb139ffd8aae729e705f5fef",
+    "official_index_sha256_matched": true,
+    "control_change": "SourceDateEpoch:1793440229 ->1793711904",
+    "executable_path": "usr/libexec/timeout-coreutils",
+    "executable_bytes": 45620,
+    "executable_sha256": "35a450ce0c155cf4be026ff84a0c9f30dc95c938d1231cff64721941ac4d36be",
+    "executable_matches_both_previous_archives": true
   }
 }

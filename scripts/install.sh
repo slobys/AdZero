@@ -3,7 +3,7 @@
 set -eu
 set -f
 umask 077
-BASE_URL=${ADZERO_BASE_URL:-https://github.com/slobys/AdZero/releases/download/v0.23.8}
+BASE_URL=${ADZERO_BASE_URL:-https://github.com/slobys/AdZero/releases/download/v0.23.9}
 LOCAL_DIR=
 ENABLE=1
 ENABLE_EXPLICIT=0
@@ -123,7 +123,7 @@ dependency_supplement() {
     supplement=$(awk -F '\t' -v fw="$FIRMWARE" -v ver="$VERSION" -v rev="$DECLARED_REVISION" -v target="$TARGET" -v arch="$DECLARED_ARCH" -v fmt="$EXT" '
       {sub(/\r$/, "", $0)}
       NF==9 && $3==fw && $4==ver && $5==rev && $6==target && $7==arch && $8==fmt {print $1 " " $2 " " $9;n++}
-      END {if(n!=1)exit 1}' "$TMP/dependencies.tsv") || return 1
+      END {if(n!=1)exit 1}' "$TMP/dependencies.tsv") || { SUPPLEMENT_UNMATCHED=1; return 1; }
     supplement_sum=${supplement%% *}; supplement_rest=${supplement#* }
     supplement_file=${supplement_rest%% *}; supplement_profile=${supplement_rest#* }
     case "$supplement_sum" in ''|*[!0-9a-f]*) fail '依赖补充包摘要无效。' ;; esac
@@ -163,8 +163,16 @@ dependency_supplement() {
     [ "$count" = "$required_count" ] || fail '依赖清单不完整。'
     printf '%s\n' 'AdZero: 已自动准备匹配本机固件的原厂依赖。'
 }
+dependency_failure() {
+    if [ "$SUPPLEMENT_UNMATCHED" = 1 ]; then
+        printf 'AdZero: 发布目录中没有唯一匹配的原厂依赖补充包（%s %s，revision=%s，target=%s，arch=%s，%s）。\n' \
+            "$FIRMWARE_LABEL" "$VERSION" "${DECLARED_REVISION:-未提供}" "$TARGET" "$DECLARED_ARCH" "$EXT" >&2
+    fi
+    fail "$@"
+}
 prepare_universal_package() {
     mkdir -p "$TMP/deps" "$TMP/empty-lists"
+    SUPPLEMENT_UNMATCHED=0
     PLAN_ONLINE=0
     if run_package_plan > "$TMP/preflight.log" 2>&1; then safe_package_plan; APK_LOCAL=1; return; fi
     # Only iStoreOS needs our supplemental packages when its feeds lack them.
@@ -175,25 +183,25 @@ prepare_universal_package() {
     fi
     PLAN_ONLINE=1
     if ! run_package_plan > "$TMP/preflight.log" 2>&1; then
-        [ "$CHECK_ONLY" != 1 ] || { cat "$TMP/preflight.log" >&2; fail '本机原生软件源尚不能满足依赖；只读检查未刷新软件源，也未修改保护。'; }
+        [ "$CHECK_ONLY" != 1 ] || { cat "$TMP/preflight.log" >&2; dependency_failure '本机原生软件源尚不能满足依赖；只读检查未刷新软件源，也未修改保护。'; }
         printf '%s\n' 'AdZero: 正在用本机原有软件源准备依赖；不添加其他固件的软件源。'
         if [ "$PM" = apk ]; then apk_native update > "$TMP/repository.log" 2>&1 || :
         else opkg_native update > "$TMP/repository.log" 2>&1 || :; fi
-        run_package_plan > "$TMP/preflight.log" 2>&1 || { cat "$TMP/preflight.log" >&2; fail '本机软件源不能满足依赖，未关闭现有保护。'; }
+        run_package_plan > "$TMP/preflight.log" 2>&1 || { cat "$TMP/preflight.log" >&2; dependency_failure '本机软件源不能满足依赖，未关闭现有保护。'; }
     fi
     safe_package_plan
     if [ "$PM" = apk ]; then
         awk '/^\([0-9]+\/[0-9]+\) Installing / {name=$3;version=$4;gsub(/[()]/,"",version);if(name!="luci-app-adzero")print name "=" version}' "$TMP/preflight.log" > "$TMP/fetch-packages"
         while IFS= read -r spec; do
             case "$spec" in ''|*[!a-zA-Z0-9._+=~:-]*) fail '原生 APK 下载计划不可安全解析。' ;; esac
-            apk_native fetch --output "$TMP/deps" "$spec" || fail '依赖下载失败；原保护未关闭。'
+            apk_native fetch --output "$TMP/deps" "$spec" || dependency_failure '依赖下载失败；原保护未关闭。'
         done < "$TMP/fetch-packages"
         PLAN_ONLINE=0
         run_package_plan > "$TMP/preflight.log" 2>&1 || fail '依赖未能完成离线复核；原保护未关闭。'
         safe_package_plan; APK_LOCAL=1
     else
         # opkg downloads the resolved closure without installing or running hooks.
-        (cd "$TMP/deps" && opkg_native --download-only --force-reinstall --cache "$TMP/deps" install "$TMP/package.ipk") || fail '依赖下载失败；原保护未关闭。'
+        (cd "$TMP/deps" && opkg_native --download-only --force-reinstall --cache "$TMP/deps" install "$TMP/package.ipk") || dependency_failure '依赖下载失败；原保护未关闭。'
         run_package_plan > "$TMP/preflight.log" 2>&1 || fail 'OPKG 依赖预检未完成；原保护未关闭。'
         safe_package_plan
     fi
