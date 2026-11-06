@@ -6,13 +6,12 @@ No router, LAN, proxy selection, UCI commit or host firewall is modified.
 BusyBox sleep disabled. The supplied source is executed only in the chroot.
 """
 from pathlib import Path
-import argparse,hashlib,io,json,os,shutil,socket,socketserver,struct,subprocess,sys,tarfile,tempfile,threading,time,urllib.request
+import argparse,hashlib,json,os,shutil,socket,socketserver,struct,subprocess,sys,tarfile,tempfile,threading,time,urllib.request
 from check_openwrt_runtime import ROOT,SHA256,URL
 from prepare_dns_socket import prepare,install
+from prepare_timeout import install as install_timeout, prepare as prepare_timeout
 from build_sdk import source_hash
 from check_dns_core import question,recv_exact
-TIMEOUT='coreutils-timeout_9.7-r1_x86_64.ipk'
-TIMEOUT_SHA='a011462f8462400ba6699066821f27ee6ddf6aea75c612087303c1f22de2796e'
 
 def response(raw):
     kind=struct.unpack('!H',raw[-4:-2])[0];ip=socket.inet_pton(socket.AF_INET6 if kind==28 else socket.AF_INET,'2001:db8::9' if kind==28 else '192.0.2.9')
@@ -20,15 +19,15 @@ def response(raw):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--inside',action='store_true');parser.add_argument('--baseline',type=Path);a=parser.parse_args()
-    rootfs=ROOT/'artifacts/runtime/openwrt-24.10.8-x86-64-rootfs.tar.gz';extra=ROOT/'artifacts/runtime/passwall-extras'/TIMEOUT
+    rootfs=ROOT/'artifacts/runtime/openwrt-24.10.8-x86-64-rootfs.tar.gz'
     if not a.inside:
         if os.geteuid()!=0:raise SystemExit('Run in Linux/WSL as root')
         prepare(ROOT,None)
-        for path,url,digest in [(rootfs,URL,SHA256),(extra,'https://archive.openwrt.org/releases/24.10.8/packages/x86_64/packages/'+TIMEOUT,TIMEOUT_SHA)]:
-            if not path.exists():
-                path.parent.mkdir(parents=True,exist_ok=True)
-                with urllib.request.urlopen(url,timeout=60) as r:path.write_bytes(r.read(20*1024*1024))
-            assert hashlib.sha256(path.read_bytes()).hexdigest()==digest
+        if not rootfs.exists():
+            rootfs.parent.mkdir(parents=True,exist_ok=True)
+            with urllib.request.urlopen(URL,timeout=60) as r:rootfs.write_bytes(r.read(20*1024*1024))
+        assert hashlib.sha256(rootfs.read_bytes()).hexdigest()==SHA256
+        prepare_timeout(ROOT)
         return subprocess.call(['unshare','--net','--mount','--propagation','private',sys.executable,__file__,'--inside',*(['--baseline',str(a.baseline.resolve())] if a.baseline else [])])
     subprocess.run(['ip','link','set','lo','up'],check=True)
     for address in ['192.0.2.53','192.0.2.54','192.0.2.55','192.0.2.56','192.0.2.57','192.0.2.58']:subprocess.run(['ip','addr','add',address+'/32','dev','lo'],check=True)
@@ -58,9 +57,7 @@ def main():
         base=Path(tmp)
         with tarfile.open(rootfs) as t:t.extractall(base,filter='fully_trusted')
         install(ROOT,base)
-        with tarfile.open(extra) as outer:
-            member=next(m for m in outer if m.name.endswith('data.tar.gz'))
-            with tarfile.open(fileobj=io.BytesIO(outer.extractfile(member).read())) as t:t.extractall(base,filter='fully_trusted')
+        install_timeout(ROOT,base)
         for name in ['proc','dev','tmp','etc/adzero','etc/daed']:(base/name).mkdir(parents=True,exist_ok=True)
         os.mknod(base/'dev/null',0o666|0o20000,os.makedev(1,3));os.mknod(base/'dev/urandom',0o666|0o20000,os.makedev(1,9))
         shutil.copytree(ROOT/'luci-app-adzero/root/usr/libexec/adzero',base/'usr/libexec/adzero',dirs_exist_ok=True)

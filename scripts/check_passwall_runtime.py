@@ -9,6 +9,7 @@ import os,tarfile,io,hashlib,json,subprocess,tempfile,shutil,sys,socket,struct,t
 import urllib.request
 from check_openwrt_runtime import ROOT, SHA256, URL
 from prepare_dns_socket import install as install_socket, prepare as prepare_socket
+from prepare_timeout import install as install_timeout, prepare as prepare_timeout
 sys.path.insert(0,str(ROOT/'tests'))
 from test_observe import dns
 
@@ -16,7 +17,7 @@ def main():
  archive=ROOT/'artifacts/runtime/openwrt-24.10.8-x86-64-rootfs.tar.gz'
  helper=ROOT/'artifacts/upstream/PassWall/helper_dnsmasq.lua';api=ROOT/'artifacts/upstream/PassWall/api.lua'
  helper2=ROOT/'artifacts/upstream/Passwall2/helper_dnsmasq.lua'
- deps={'lua_5.1.5-r11_x86_64.ipk':'164795e16b225d71e776a5aa584f6b3af239a0012724da63de58dd808f6a3165','liblua5.1.5_5.1.5-r11_x86_64.ipk':'53875655f43c24dc00fe3f94a1a9e15294be48b80ee32d9fd5d6cddc65b01a70','coreutils-timeout_9.7-r1_x86_64.ipk':'a011462f8462400ba6699066821f27ee6ddf6aea75c612087303c1f22de2796e'}
+ deps={'lua_5.1.5-r11_x86_64.ipk':'164795e16b225d71e776a5aa584f6b3af239a0012724da63de58dd808f6a3165','liblua5.1.5_5.1.5-r11_x86_64.ipk':'53875655f43c24dc00fe3f94a1a9e15294be48b80ee32d9fd5d6cddc65b01a70'}
  if '--inside' not in sys.argv:
   if os.geteuid()!=0:raise SystemExit('Run in Linux/WSL as root')
   prepare_socket(ROOT,None)
@@ -33,7 +34,8 @@ def main():
   fetch(api,prefix+'luasrc/passwall/api.lua','dfcc760005ec18681b72c9371344247034430d905d40fdafcfef93bcf5f3a7c4')
   fetch(helper2,'https://raw.githubusercontent.com/Openwrt-Passwall/openwrt-passwall2/6e06876b7140a6451139dd8116635f80897ec3b3/luci-app-passwall2/root/usr/share/passwall2/helper_dnsmasq.lua','204ac1202b83ef571579ed21960a85ed5971a12a013c3da7159756eee96726bc')
   fetch(ROOT/'artifacts/upstream/SSRPlus/gfw2ipset.sh','https://raw.githubusercontent.com/fw876/helloworld/2abdc9aa9e19607774dc9789709212b70b8607c6/luci-app-ssr-plus/root/usr/share/shadowsocksr/gfw2ipset.sh','2d456af581fcca037e259c285c202f564bfdba00057186f95d626e0db2700309')
-  for name,digest in deps.items():fetch(ROOT/'artifacts/runtime/passwall-extras'/name,'https://archive.openwrt.org/releases/24.10.8/packages/x86_64/'+('packages/' if name.startswith('coreutils-') else 'base/')+name,digest)
+  for name,digest in deps.items():fetch(ROOT/'artifacts/runtime/passwall-extras'/name,'https://archive.openwrt.org/releases/24.10.8/packages/x86_64/base/'+name,digest)
+  prepare_timeout(ROOT)
   return subprocess.call(['unshare','--net','--mount','--propagation','private',sys.executable,__file__,'--inside'])
  subprocess.run(['ip','link','set','lo','up'],check=True)
  assert hashlib.sha256(archive.read_bytes()).hexdigest()=='6c94190246a54088e3984fc0c4cbbb518972abb2b10a28e30a0c41554eea8b9d'
@@ -43,6 +45,7 @@ def main():
   base=Path(tmp)
   with tarfile.open(archive) as t:t.extractall(base,filter='fully_trusted')
   install_socket(ROOT,base)
+  install_timeout(ROOT,base)
   for name,digest in deps.items():
    p=ROOT/'artifacts/runtime/passwall-extras'/name;assert hashlib.sha256(p.read_bytes()).hexdigest()==digest
    with tarfile.open(p) as outer:
