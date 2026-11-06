@@ -259,6 +259,28 @@ fi
                 checks.append('new process start plus real authorized API allows explicit recovery; reload ack fixture')
                 # Protocol-only fixtures exercise production response handling;
                 # they do not replace the real JWT/backend checks above.
+                put('usr/libexec/daed/luci-proxy', """#!/bin/sh
+if [ "$PATH_INFO" = /health/ready ]; then
+ if [ -f /tmp/core-switching ]; then
+  printf 'Status: 503 Unavailable\\r\\n\\r\\n%s' '{"core":"dae","phase":"core_switching","ready":false}'
+ else
+  printf 'Status: 200 OK\\r\\n\\r\\n%s' '{"core":"dae","phase":"ready","ready":true,"configured":true,"listening":true,"initialized":true,"dns_ready":true,"routing_ready":true}'
+ fi
+else
+ case "$(cat)" in
+  *coreStatus*) printf 'Status: 200 OK\\r\\n\\r\\n%s' '{"data":{"coreStatus":{"current":"dae","phase":"stable","runtime":"ready","api_only":false}}}';;
+  *) printf 'Status: 200 OK\\r\\n\\r\\n%s' '{"data":{"general":{"dae":{"running":true,"modified":false}}}}';;
+ esac
+fi
+""", 0o755)
+                value = adapter('check')
+                assert value.returncode == 0 and value.stdout.strip() == 'nailink', value.stderr
+                switch = put('tmp/core-switching', '')
+                value = adapter('check')
+                assert value.returncode != 0 and '正在切换内核' in value.stderr, value.stderr
+                switch.unlink()
+                assert not record.exists()
+                checks.append('missing persisted running uses live readiness; HTTP 503 transition blocks configuration')
                 for status, expected in [(401, 'local session denied'), (403, 'local session denied'),
                                          (502, 'completion unconfirmed'), (503, 'not ready'), (413, 'too large')]:
                     put('usr/libexec/daed/luci-proxy', f"#!/bin/sh\nprintf 'Status: {status} Fixture\\nContent-Type: text/plain\\n\\nprivate-response-marker'\n", 0o755)

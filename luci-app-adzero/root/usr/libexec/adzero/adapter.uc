@@ -263,7 +263,8 @@ function graphql(query, variables, readiness) {
 		if (separator < 0) die('NaiLink CGI returned an invalid response (' + operation + ')');
 		let status = match(substr(response, 0, separator), /(^|\n)Status: ([0-9]{3})/);
 		let code = status ? +status[2] : 200;
-		if (code >= 400) {
+		let not_ready = readiness && code == 503;
+		if (code >= 400 && !not_ready) {
 			let reason = index([401,403],code) >= 0 ? 'local session denied' :
 				index([502,504],code) >= 0 ? 'upstream unavailable or timed out; completion unconfirmed' :
 				code == 503 ? 'gateway or backend not ready' : code == 413 ? 'request too large' : 'request rejected';
@@ -272,7 +273,11 @@ function graphql(query, variables, readiness) {
 			}
 			die('NaiLink CGI HTTP ' + code + ' (' + operation + '): ' + reason + '; private response omitted');
 		}
-		let result = json(substr(response, separator + 2));
+		let result;
+		try { result = json(substr(response, separator + 2)); }
+		catch(e) { die('NaiLink CGI returned an invalid response (' + operation + '); private response omitted'); }
+		if (not_ready && result?.ready !== false)
+			die('NaiLink gateway or backend not ready; private response omitted');
 		if (readiness) { bus.call('session','destroy',{ubus_rpc_session:session}); bus.disconnect(); return result; }
 		// Only an explicit old-schema rejection permits the legacy API fallback.
 		// A transport/auth failure during a core switch must remain uncertain.
@@ -342,6 +347,7 @@ function active_plugin() {
 	// Merely recognizing a running process does not prove API authorization.
 	selected_core=active[0].core??null;
 	let nailink_runtime = active[0].id == 'nailink' ? nailink_runtime_state() : null;
+	if(nailink_runtime?.reason=='core_transition')die('NaiLink 正在切换内核，请等待其完成；原配置保持不变。');
 	if (active[0].id == 'nailink' && type(nailink_runtime?.running) != 'bool') die('NaiLink returned invalid runtime state');
 	if(active[0].id=='nailink'&&selected_core&&nailink_runtime.core!=selected_core)die('NaiLink 正在切换内核，请等待其完成；原配置保持不变。');
 	if(active[0].id=='nailink')selected_core=nailink_runtime.core;

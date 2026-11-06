@@ -3,7 +3,7 @@
 set -eu
 set -f
 umask 077
-BASE_URL=${ADZERO_BASE_URL:-https://github.com/slobys/AdZero/releases/download/v0.23.9}
+BASE_URL=${ADZERO_BASE_URL:-https://github.com/slobys/AdZero/releases/download/v0.23.10}
 LOCAL_DIR=
 ENABLE=1
 ENABLE_EXPLICIT=0
