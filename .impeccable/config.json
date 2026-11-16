@@ -1,0 +1,53 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "artifacts/pause-dashboard-public.html"
+        ],
+        "createdAt": "2026-11-16T02:08:18.853Z",
+        "reason": "Agent: saved documentation HTML snapshot lacks its linked site.css in artifacts; published heading sizes are 34px/23px with 16px body"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "artifacts/public-compatibility-page.html"
+        ],
+        "createdAt": "2026-11-16T02:08:18.918Z",
+        "reason": "Agent: saved documentation HTML snapshot lacks its linked site.css in artifacts; published heading sizes are 34px/23px with 16px body"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "luci-app-adzero/htdocs/luci-static/resources/view/adzero/overview.css"
+        ],
+        "createdAt": "2026-11-16T02:08:18.983Z",
+        "reason": "Agent: existing hero border signals protection on/off; DNS validation border signals a configuration warning, paired with status text"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "docs/site/site.css"
+        ],
+        "createdAt": "2026-11-16T02:08:19.049Z",
+        "reason": "Agent: callout borders distinguish documentation guidance and warnings; preserve this existing semantic convention"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "docs/site/template.html"
+        ],
+        "createdAt": "2026-11-16T02:08:19.118Z",
+        "reason": "Agent: static template scan combines dark-theme variables with white print backgrounds and black print text; published browser scan resolves the real CSS and reports none of these seven contrast pairs"
+      }
+    ]
+  }
+}
