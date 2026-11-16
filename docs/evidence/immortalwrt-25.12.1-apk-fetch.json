@@ -1,0 +1,43 @@
+{
+  "verified_on": "2026-11-16",
+  "firmware": "immortalwrt",
+  "release": "25.12.1",
+  "target": "x86/64",
+  "arch": "x86_64",
+  "apk_tools": "3.0.5",
+  "rootfs_url": "https://downloads.immortalwrt.org/releases/25.12.1/targets/x86/64/immortalwrt-25.12.1-x86-64-rootfs.tar.gz",
+  "rootfs_sha256": "4ecf90c4628f8a1e86128e28c59cb16fee4e28c4f1c99d16e6a120dfa92116f9",
+  "tested_application": "luci-app-adzero_0.23.11-r1_noarch.apk",
+  "application_sha256": "005e91251551d3275a86e654f07c5b029c1097d95cc6c1b4b4854f96a00ecc7a",
+  "installer_sha256": "7a30481d66e303354e10dfd25f64a438cf0397cae296d4d4f011bd8010b1f310",
+  "checks": {
+    "version_constrained_fetch": "reproduced_unable_to_select_package",
+    "package_name_fetch": "passed",
+    "two_digit_native_install_plan": "passed_all_missing_packages_downloaded",
+    "unavailable_download": "passed_existing_app_and_recovery_preserved",
+    "unified_installer_check": "passed_original_database_unchanged",
+    "unified_installer_install": "passed_native_apk_transaction",
+    "preinstalled_packages": 227,
+    "original_packages_removed_or_changed": 0,
+    "package_hooks_executed": false,
+    "device_acceptance": "not_run"
+  },
+  "added_packages": {
+    "adblock-fast": "1.2.4-r4",
+    "conntrack": "1.4.8-r1",
+    "coreutils": "9.9-r2",
+    "coreutils-timeout": "9.9-r2",
+    "curl": "8.23.0-r1",
+    "libcurl4": "8.23.0-r1",
+    "libnetfilter-cthelper0": "1.0.0-r2",
+    "libnetfilter-cttimeout1": "1.0.0-r2",
+    "libnetfilter-queue1": "1.0.5-r4",
+    "libnghttp2-14": "1.70.0-r1",
+    "libpcap1": "1.10.6-r1",
+    "luci-app-adzero": "0.23.11-r1",
+    "resolveip": "2",
+    "tcpdump": "4.99.6-r1",
+    "ucode-mod-socket": "2026.01.16~85922056-r2"
+  },
+  "scope": "Original factory root and native musl APK binary in an isolated filesystem, using the unmodified firmware repositories. Package scripts and commit hooks were disabled. This validates dependency selection, download and installation, not live router DNS or proxy operation. Separate real host-APK regressions exercise upgrade ordering and failed-download preservation."
+}

@@ -66,6 +66,7 @@ jobs:
           package=$(python3 -c "import json;print(json.load(open('dist/sdk/build-manifest.json'))['package'])")
           if [ "$FORMAT" = apk ]; then
             python3 scripts/check_sdk_packages.py "dist/sdk/$package" --apk-tool "$SDK_PATH/staging_dir/host/bin/apk"
+            ADZERO_APK_TOOL="$SDK_PATH/staging_dir/host/bin/apk" python3 -m unittest discover -s tests -p test_apk_dependency_fetch.py -v
           else
             python3 scripts/check_sdk_packages.py "dist/sdk/$package"
           fi

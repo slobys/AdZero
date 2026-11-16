@@ -31,6 +31,7 @@ if 'extract' in a:
  log('extract-recovery');sys.exit(0)
 if 'fetch' in a or '--download-only' in a:
  log('fetch-before-disable')
+ if 'fetch' in a:assert '=' not in a[-1],a
  if os.environ.get('DOWNLOAD_FAIL')=='1':sys.exit(1)
  orig=sys.argv;opt='--output' if 'fetch' in a else '--cache'
  dest=pathlib.Path(orig[orig.index(opt)+1]);(dest/('conntrack-1-r1.apk' if manager=='apk' else 'conntrack_1-r1_all.ipk')).write_bytes(b'dep')
