@@ -84,6 +84,16 @@ class HTTPRelay(unittest.TestCase):
    cfg=Path(d)/'config.json';config=dict(context=dict(lan=dict(address='127.0.0.1'),listen_port=port,port=dns.server_address[1],inspector=dict(address='127.0.0.1',port=httpd.server_port,secret='secret')),settings=dict(cname=True,devices=[]),rules={'ads.example':True},allowed=[])
    cfg.write_text(json.dumps(config));p=subprocess.Popen(UCODE+[str(ROOT/'scripts/dns_relay_fixture.uc'),str(cfg)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
    try:
+    def configure():
+     # The fixture reads between poll steps: never expose a truncated JSON
+     # file, and wait for its acknowledgement instead of a fixed sleep.
+     applied=Path(str(cfg)+'.applied');applied.unlink(missing_ok=True)
+     staged=Path(str(cfg)+'.next');staged.write_text(json.dumps(config));staged.replace(cfg)
+     deadline=time.monotonic()+2
+     while not applied.exists():
+      self.assertIsNone(p.poll(),'relay exited while applying fixture configuration')
+      self.assertLess(time.monotonic(),deadline,'fixture configuration was not acknowledged')
+      time.sleep(.01)
     check=subprocess.run(UCODE+[str(ROOT/'scripts/dns_http_fixture.uc')],input=json.dumps(dict(context=config['context'],query=base64.b64encode(query()).decode())),text=True,capture_output=True,timeout=4)
     self.assertEqual(check.returncode,0,check.stdout+check.stderr)
     time.sleep(.15)
@@ -95,9 +105,9 @@ class HTTPRelay(unittest.TestCase):
     for chunked in (False,True):
      state['chunked']=chunked;q,r=ask();self.assertEqual(r[6:8],b'\0\0');self.assertFalse(r[3]&32)
     state['unrelated']=True;q,r=ask();self.assertEqual(r,native_answer(q));state['unrelated']=False
-    config['allowed']=['shop.example'];cfg.write_text(json.dumps(config));time.sleep(.15)
+    config['allowed']=['shop.example'];configure()
     q,r=ask();self.assertEqual(r,native_answer(q))
-    config['allowed']=[];cfg.write_text(json.dumps(config));time.sleep(.15)
+    config['allowed']=[];configure()
     state['error']=True;q,r=ask();self.assertEqual(r,native_answer(q));state['error']=False
     state['delay']=2;started=time.monotonic();q,r=ask();self.assertEqual(r,native_answer(q));self.assertLess(time.monotonic()-started,2)
     self.assertTrue(requests);self.assertEqual(set(requests),{'Bearer secret'})

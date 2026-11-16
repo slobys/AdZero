@@ -3,7 +3,7 @@
 set -eu
 set -f
 umask 077
-BASE_URL=${ADZERO_BASE_URL:-https://github.com/slobys/AdZero/releases/download/v0.23.10}
+BASE_URL=${ADZERO_BASE_URL:-https://github.com/slobys/AdZero/releases/download/v0.23.11}
 LOCAL_DIR=
 ENABLE=1
 ENABLE_EXPLICIT=0
@@ -191,10 +191,20 @@ prepare_universal_package() {
     fi
     safe_package_plan
     if [ "$PM" = apk ]; then
-        awk '/^\([0-9]+\/[0-9]+\) Installing / {name=$3;version=$4;gsub(/[()]/,"",version);if(name!="luci-app-adzero")print name "=" version}' "$TMP/preflight.log" > "$TMP/fetch-packages"
-        while IFS= read -r spec; do
-            case "$spec" in ''|*[!a-zA-Z0-9._+=~:-]*) fail '原生 APK 下载计划不可安全解析。' ;; esac
-            apk_native fetch --output "$TMP/deps" "$spec" || dependency_failure '依赖下载失败；原保护未关闭。'
+        # apk-tools 3.0.5 fetch rejects name=version even when the exact
+        # package is available. Fetch names from the checked native plan,
+        # then solve again using only the downloaded files below.
+        awk '/^\([[:space:]]*[0-9]+\/[0-9]+\)[[:space:]]+Installing[[:space:]]+/ {
+            sub(/^\([[:space:]]*[0-9]+\/[0-9]+\)[[:space:]]+Installing[[:space:]]+/, "")
+            split($0, fields, /[[:space:]]+/)
+            if(fields[1]!="luci-app-adzero")print fields[1]
+        }' "$TMP/preflight.log" > "$TMP/fetch-packages"
+        while IFS= read -r package_name; do
+            case "$package_name" in ''|*[!a-zA-Z0-9._+-]*) fail '原生 APK 下载计划不可安全解析。' ;; esac
+            apk_native fetch --output "$TMP/deps" "$package_name" || {
+                printf 'AdZero: 无法从本机软件源获取依赖 %s。\n' "$package_name" >&2
+                dependency_failure '依赖下载失败；原保护未关闭。'
+            }
         done < "$TMP/fetch-packages"
         PLAN_ONLINE=0
         run_package_plan > "$TMP/preflight.log" 2>&1 || fail '依赖未能完成离线复核；原保护未关闭。'
